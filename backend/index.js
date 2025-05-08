@@ -28,7 +28,10 @@ app.use(express.json());
 
 console.log("Current working directory:", process.cwd());
 
-//PROPERLY WORKING ROUTE SEARCHING IMAGE IN BOTH GOOGLE AND BING 
+//PROPERLY WORKING BUT SEARCH IMAGE IN GOOGLE AND BING MAKES DELAY
+
+
+
 // app.post("/fullImages", async (req, res) => {
 //   const dishes = req.body;
 //   console.log(`Processing ${dishes.length} dishes`);
@@ -369,6 +372,11 @@ console.log("Current working directory:", process.cwd());
 //     }
 //   }
 // });
+
+
+
+
+
 
 //PORPERLY WORKING SERACHING ONLY IN BING BUT DOUBT IN IMAGE QUALITY 
 app.post("/fullImages", async (req, res) => {
@@ -714,6 +722,7 @@ app.post("/fullImages", async (req, res) => {
 
 
 // ROUTE IS FAST AND BETTER IMAGES BUT MOST TIME WRONG IMAGES CAME
+
 // app.post("/fullImages", async (req, res) => {
 //   const dishes = req.body;
 //   console.log(`Processing ${dishes.length} dishes`);
@@ -1838,6 +1847,12 @@ app.post("/fullImages", async (req, res) => {
 //     }
 //   }
 // });
+
+
+
+
+
+
 
 app.post("/partialImages", async (req, res) => {
   const dishes = req.body;
