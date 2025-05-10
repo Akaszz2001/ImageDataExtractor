@@ -1,6 +1,918 @@
+// import React, { useState, useRef, useEffect } from "react";
+// import axios from "axios";
+// import "./App.css";
+// import GalleryCardIetms from "./components/GalleryCardIetms";
+
+// const TOGETHER_API_KEY =
+//   "ffd96bebc08219a7dd524b0846b1c4fd6d603c5142343ec7fe6157d8dde2bf7c";
+
+// function App() {
+//   const [files, setFiles] = useState([]);
+//   const [combinedData, setCombinedData] = useState([]);
+//   const [loading, setLoading] = useState(false);
+//   const [imageGenerationLoading, setImageGenerationLoading] = useState(false);
+//   const [error, setError] = useState(null);
+//   const [processedCount, setProcessedCount] = useState(0);
+//   const [imageProcessedCount, setImageProcessedCount] = useState(0);
+//   const [isDragging, setIsDragging] = useState(false);
+//   const [copySuccess, setCopySuccess] = useState(false);
+//   const [partialImageLoading, setPartialImageLoading] = useState(false);
+//   const [mutlipleImageLoading,setMutipleImageLoading]=useState(false)
+//   const [pastedJson, setPastedJson] = useState("");
+//   const [pastedJsonError, setPastedJsonError] = useState(null);
+//   const dropAreaRef = useRef(null);
+
+//   // Handle clipboard paste events
+//   useEffect(() => {
+//     const handlePaste = (e) => {
+//       if (e.clipboardData?.items) {
+//         const imageItems = Array.from(e.clipboardData.items)
+//           .filter((item) => item.type.indexOf("image") !== -1)
+//           .map((item) => {
+//             const file = item.getAsFile();
+//             if (!file) return null;
+//             return new File(
+//               [file],
+//               `pasted_image_${Date.now()}_${Math.random()
+//                 .toString(36)
+//                 .substring(2)}.${file.name.split(".").pop() || "png"}`,
+//               { type: file.type }
+//             );
+//           })
+//           .filter(Boolean);
+
+//         if (imageItems.length > 0) {
+//           setFiles((prev) => [...prev, ...imageItems]);
+//           setError(null);
+//         }
+//       }
+//     };
+
+//     document.addEventListener("paste", handlePaste);
+//     return () => document.removeEventListener("paste", handlePaste);
+//   }, []);
+
+//   // Handle drag and drop events
+//   useEffect(() => {
+//     if (!dropAreaRef.current) return;
+
+//     const handleDragOver = (e) => {
+//       e.preventDefault();
+//       setIsDragging(true);
+//     };
+
+//     const handleDragLeave = () => setIsDragging(false);
+
+//     const handleDrop = (e) => {
+//       e.preventDefault();
+//       setIsDragging(false);
+
+//       if (e.dataTransfer.files?.length > 0) {
+//         const newFiles = Array.from(e.dataTransfer.files).filter((file) =>
+//           file.type.startsWith("image/")
+//         );
+
+//         if (newFiles.length > 0) {
+//           setFiles((prev) => [...prev, ...newFiles]);
+//           setError(null);
+//         } else {
+//           setError("Please drop image files only");
+//         }
+//       }
+//     };
+
+//     const dropArea = dropAreaRef.current;
+//     dropArea.addEventListener("dragover", handleDragOver);
+//     dropArea.addEventListener("dragleave", handleDragLeave);
+//     dropArea.addEventListener("drop", handleDrop);
+
+//     return () => {
+//       dropArea.removeEventListener("dragover", handleDragOver);
+//       dropArea.removeEventListener("dragleave", handleDragLeave);
+//       dropArea.removeEventListener("drop", handleDrop);
+//     };
+//   }, []);
+
+//   const handleFileChange = (e) => {
+//     const newFiles = Array.from(e.target.files);
+//     setFiles((prev) => [...prev, ...newFiles]);
+//     setError(null);
+//   };
+
+//   const removeFile = (index) =>
+//     setFiles((prev) => prev.filter((_, i) => i !== index));
+//   const clearAllFiles = () => setFiles([]);
+
+//   // Function to safely extract JSON from a string
+//   const extractJSON = (str) => {
+//     try {
+//       return JSON.parse(str.trim());
+//       // eslint-disable-next-line no-unused-vars
+//     } catch (e) {
+//       // Try various approaches to extract JSON
+//       try {
+//         // Look for JSON array pattern
+//         const jsonArrayRegex = /\s*\[.*\]\s*/s;
+//         const matches = str.match(jsonArrayRegex);
+
+//         if (matches?.[0]) {
+//           // eslint-disable-next-line no-control-regex
+//           return JSON.parse(matches[0].replace(/[\u0000-\u0019]+/g, ""));
+//         }
+
+//         // Find all patterns that look like JSON objects
+//         const objRegex = /\{[^{}]*"name"[^{}]*"price"[^{}]*\}/g;
+//         const objMatches = str.match(objRegex);
+
+//         if (objMatches?.length > 0) {
+//           return JSON.parse("[" + objMatches.join(",") + "]");
+//         }
+//       } catch (e) {
+//         console.log(e);
+//       } // Silently handle nested parsing errors
+
+//       // Last resort: return empty array
+//       console.log("No valid JSON found, returning empty array");
+//       return [];
+//     }
+//   };
+
+//   // Function to make API requests with retry mechanism
+//   const makeAPIRequest = async (messages, temperature, retryCount = 0) => {
+//     try {
+//       const res = await axios.post(
+//         "/api/chat/completions",
+//         {
+//           model: "meta-llama/Llama-Vision-Free",
+//           messages,
+//           max_tokens: 2000,
+//           temperature,
+//         },
+//         {
+//           headers: {
+//             Authorization: `Bearer ${TOGETHER_API_KEY}`,
+//             "Content-Type": "application/json",
+//           },
+//         }
+//       );
+
+//       return res.data.choices[0].message.content;
+//     } catch (error) {
+//       // Retry with exponential backoff
+//       if (retryCount < 3) {
+//         const delay = Math.pow(2, retryCount) * 1000;
+//         console.log(`API request failed, retrying in ${delay}ms...`);
+//         await new Promise((resolve) => setTimeout(resolve, delay));
+//         return makeAPIRequest(messages, temperature, retryCount + 1);
+//       }
+//       throw error;
+//     }
+//   };
+
+//   // Convert file to base64
+//   const toBase64 = (file) =>
+//     new Promise((resolve, reject) => {
+//       const reader = new FileReader();
+//       reader.readAsDataURL(file);
+//       reader.onload = () => resolve(reader.result.split(",")[1]);
+//       reader.onerror = reject;
+//     });
+
+//   // Create prompt variations for menu extraction
+//   const createPrompts = (imageBase64, imageType) => [
+//     // First attempt prompt
+//     {
+//       messages: [
+//         {
+//           role: "system",
+//           content: `
+//             You are an expert in extracting structured data from restaurant menu images. Your task is to extract each dish along with its variant (e.g., Quarter, Half, Full) as **separate items**.
+            
+//             - The **main heading** in the image (e.g., AL FAHAM) should be used as the **category**.
+//             - For each dish like "Al Faham Normal", if there are sizes like Quarter, Half, Full, then extract them as **separate items**: "Al Faham Normal (Quarter)", "Al Faham Normal (Half)", etc.
+//             - The **name** should include the size (e.g., "Al Faham Honey (Full)").
+//             - The **description** should describe the item based on its name and size. Example: "A full portion of Al Faham Honey-flavored grilled chicken."
+//             - The **price** must be the **correct number** (ignore struck-through or older prices if new prices are written nearby).
+//             - Format your response as a **JSON array only**, with each object in this format:
+//             {
+//               "name": string,
+//               "price": number,
+//               "description": string,
+//               "category": string
+//             } 
+//           `.trim(),
+//         },
+//         {
+//           role: "user",
+//           content: [
+//             {
+//               type: "text",
+//               text: "Extract menu items from the provided image and convert them into a valid JSON array with name, price (numeric only), description, and category fields. Return ONLY the JSON array.",
+//             },
+//             {
+//               type: "image_url",
+//               image_url: {
+//                 url: `data:image/${imageType};base64,${imageBase64}`,
+//               },
+//             },
+//           ],
+//         },
+//       ],
+//       temperature: 0.2,
+//     },
+//     // Backup prompt
+//     {
+//       messages: [
+//         {
+//           role: "system",
+//           content:
+//             "You are an expert at extracting menu items from images. IGNORE all serial numbers/item numbers. Prices are typically positioned to the right side of each dish name. The main section titles in the menu should be used as category names. If a menu has subcategories, include the main category in the category field and add the subcategory information in the name and description fields. Format as JSON array with {name, price (numeric only), description, category}.",
+//         },
+//         {
+//           role: "user",
+//           content: [
+//             {
+//               type: "text",
+//               text: "This is a restaurant menu image. Extract ALL menu items with their prices. Create brief descriptions for items that don't have them. Return a JSON array only.",
+//             },
+//             {
+//               type: "image_url",
+//               image_url: {
+//                 url: `data:image/${imageType};base64,${imageBase64}`,
+//               },
+//             },
+//           ],
+//         },
+//       ],
+//       temperature: 0.7,
+//     },
+//     // Final attempt prompt
+//     {
+//       messages: [
+//         {
+//           role: "system",
+//           content:
+//             "Extract menu items from this image. IGNORE all serial numbers. Create brief descriptions for dishes. Identify logical categories from section titles. If a menu has subcategories, include the main category in the category field and add the subcategory information in the name and description fields. Your response MUST be a valid JSON array with each item having name, price, description, and category fields.",
+//         },
+//         {
+//           role: "user",
+//           content: [
+//             {
+//               type: "text",
+//               text: "Extract menu items from this image. Format your response as a plain JSON array with no explanations.",
+//             },
+//             {
+//               type: "image_url",
+//               image_url: {
+//                 url: `data:image/${imageType};base64,${imageBase64}`,
+//               },
+//             },
+//           ],
+//         },
+//       ],
+//       temperature: 0.9,
+//     },
+//   ];
+
+//   // Process a single image
+//   const processImage = async (imageData) => {
+//     const prompts = createPrompts(imageData.base64, imageData.type);
+
+//     for (let i = 0; i < prompts.length; i++) {
+//       try {
+//         const content = await makeAPIRequest(
+//           prompts[i].messages,
+//           prompts[i].temperature
+//         );
+//         const menuData = extractJSON(content);
+
+//         if (Array.isArray(menuData) && menuData.length > 0) {
+//           return {
+//             filename: imageData.name,
+//             data: menuData,
+//             note:
+//               i > 0 ? `Attempt #${i + 1} was needed for this image` : undefined,
+//           };
+//         }
+//       } catch (error) {
+//         console.error(
+//           `Error in attempt ${i + 1} for ${imageData.name}:`,
+//           error
+//         );
+//         if (i === prompts.length - 1) {
+//           return {
+//             filename: imageData.name,
+//             error: {
+//               message: `Failed after ${prompts.length} attempts: ${error.message}`,
+//             },
+//           };
+//         }
+//       }
+//     }
+
+//     return {
+//       filename: imageData.name,
+//       error: {
+//         message: "Could not extract menu items after multiple attempts",
+//       },
+//     };
+//   };
+
+//   const handlePartialImageGeneration = async () => {
+//     // Get all menu items from combinedData
+//     const allItems = combinedData
+//       .filter(
+//         (result) => !result.error && result.data && Array.isArray(result.data)
+//       )
+//       .flatMap((result) => result.data);
+
+//     if (allItems.length === 0) {
+//       setError("No menu items to generate images for");
+//       return;
+//     }
+
+//     setPartialImageLoading(true);
+//     setImageProcessedCount(0);
+//     setError(null);
+
+//     try {
+//       // Create a deep copy of combinedData
+//       const updatedData = JSON.parse(JSON.stringify(combinedData));
+
+//       // Send all dishes to the partial image generation endpoint
+//       const response = await axios.post(
+//         "http://localhost:3000/partialImages",
+//         allItems,
+//         {
+//           headers: {
+//             "Content-Type": "application/json",
+//           },
+//         }
+//       );
+
+//       // Process the response and update the data
+//       if (response.data && Array.isArray(response.data)) {
+//         // Create a map of dish name to image URL for quick lookup
+//         const dishImageMap = {};
+//         response.data.forEach((dish) => {
+//           if (dish.name && dish.image) {
+//             dishImageMap[dish.name] = dish.image;
+//           }
+//         });
+
+//         // Update each dish in our data with its image URL
+//         let processedCount = 0;
+//         updatedData.forEach((result) => {
+//           if (!result.error && result.data && Array.isArray(result.data)) {
+//             result.data.forEach((dish) => {
+//               if (dishImageMap[dish.name]) {
+//                 dish.image = dishImageMap[dish.name];
+//                 processedCount++;
+//                 setImageProcessedCount(processedCount);
+//               }
+//             });
+//           }
+//         });
+
+//         // Update the combinedData with the enhanced data
+//         setCombinedData(updatedData);
+//       } else {
+//         throw new Error(
+//           "Invalid response from partial image generation server"
+//         );
+//       }
+//     } catch (err) {
+//       setError(`Partial image generation error: ${err.message}`);
+//     } finally {
+//       setPartialImageLoading(false);
+//     }
+//   };
+
+
+
+//   const multipleImageGeneration = async () => {
+//     // Get all menu items from combinedData
+//     const allItems = combinedData
+//       .filter(
+//         (result) => !result.error && result.data && Array.isArray(result.data)
+//       )
+//       .flatMap((result) => result.data);
+
+//     if (allItems.length === 0) {
+//       setError("No menu items to generate images for");
+//       return;
+//     }
+
+//     setMutipleImageLoading(true);
+//     setImageProcessedCount(0);
+//     setError(null);
+
+//     try {
+//       // Create a deep copy of combinedData
+//       const updatedData = JSON.parse(JSON.stringify(combinedData));
+
+//       // Send all dishes to the multiple image generation endpoint
+//       const response = await axios.post(
+//         "http://localhost:3000/multipleImages",
+//         allItems,
+//         {
+//           headers: {
+//             "Content-Type": "application/json",
+//           },
+//         }
+//       );
+
+//       // Process the response and update the data
+//       if (response.data && Array.isArray(response.data)) {
+//         // Create a map of dish name to images array for quick lookup
+//         const dishImagesMap = {};
+//         response.data.forEach((dish) => {
+//           if (dish.name && dish.images && Array.isArray(dish.images)) {
+//             dishImagesMap[dish.name] = dish.images;
+//           }
+//         });
+
+//         // Update each dish in our data with its images array
+//         let processedCount = 0;
+//         updatedData.forEach((result) => {
+//           if (!result.error && result.data && Array.isArray(result.data)) {
+//             result.data.forEach((dish) => {
+//               if (dishImagesMap[dish.name]) {
+//                 dish.images = dishImagesMap[dish.name];
+//                 processedCount++;
+//                 setImageProcessedCount(processedCount);
+//               }
+//             });
+//           }
+//         });
+
+//         // Update the combinedData with the enhanced data
+//         setCombinedData(updatedData);
+//       } else {
+//         throw new Error(
+//           "Invalid response from multiple image generation server"
+//         );
+//       }
+//     } catch (err) {
+//       setError(`Multiple image generation error: ${err.message}`);
+//     } finally {
+//       setMutipleImageLoading(false);
+//     }
+//   };
+
+
+
+//   const handleSubmit = async () => {
+//     if (files.length === 0) return;
+
+//     setLoading(true);
+//     setError(null);
+//     setCombinedData([]);
+//     setProcessedCount(0);
+//     setCopySuccess(false);
+//     setImageProcessedCount(0);
+
+//     try {
+//       // Prepare images data
+//       const imagesData = await Promise.all(
+//         files.map(async (file) => ({
+//           name: file.name,
+//           type: file.type,
+//           base64: await toBase64(file),
+//         }))
+//       );
+
+//       // Process images sequentially
+//       const results = [];
+//       for (let i = 0; i < imagesData.length; i++) {
+//         const result = await processImage(imagesData[i]);
+//         results.push(result);
+//         setProcessedCount(i + 1);
+//       }
+
+//       setCombinedData(results);
+//     } catch (err) {
+//       setError(`Processing error: ${err.message}`);
+//     } finally {
+//       setLoading(false);
+//     }
+//   };
+
+//   // Generate images for all dishes using the backend
+//   const handleGenerateImages = async () => {
+//     // Get all menu items from combinedData
+//     const allItems = combinedData
+//       .filter(
+//         (result) => !result.error && result.data && Array.isArray(result.data)
+//       )
+//       .flatMap((result) => result.data);
+
+//     if (allItems.length === 0) {
+//       setError("No menu items to generate images for");
+//       return;
+//     }
+
+//     setImageGenerationLoading(true);
+//     setImageProcessedCount(0);
+//     setError(null);
+
+//     try {
+//       // Create a deep copy of combinedData
+//       const updatedData = JSON.parse(JSON.stringify(combinedData));
+
+//       // Send all dishes to the backend in a single request
+//       const response = await axios.post(
+//         "http://localhost:3000/fullImages",
+//         allItems,
+//         {
+//           headers: {
+//             "Content-Type": "application/json",
+//           },
+//         }
+//       );
+
+//       // Process the response and update the data
+//       if (response.data && Array.isArray(response.data)) {
+//         // Create a map of dish name to image URL for quick lookup
+//         const dishImageMap = {};
+//         response.data.forEach((dish) => {
+//           if (dish.name && dish.image) {
+//             dishImageMap[dish.name] = dish.image;
+//           }
+//         });
+
+//         // Update each dish in our data with its image URL
+//         let processedCount = 0;
+//         updatedData.forEach((result) => {
+//           if (!result.error && result.data && Array.isArray(result.data)) {
+//             result.data.forEach((dish) => {
+//               if (dishImageMap[dish.name]) {
+//                 dish.image = dishImageMap[dish.name];
+//                 processedCount++;
+//                 setImageProcessedCount(processedCount);
+//               }
+//             });
+//           }
+//         });
+
+//         // Update the combinedData with the enhanced data
+//         setCombinedData(updatedData);
+//       } else {
+//         throw new Error("Invalid response from image generation server");
+//       }
+//     } catch (err) {
+//       setError(`Image generation error: ${err.message}`);
+//     } finally {
+//       setImageGenerationLoading(false);
+//     }
+//   };
+
+//   // Copy all menu items to clipboard
+//   const copyToClipboard = () => {
+//     const allMenuItems = combinedData
+//       .filter(
+//         (result) => !result.error && result.data && Array.isArray(result.data)
+//       )
+//       .flatMap((result) =>
+//         result.data.map((item) => ({
+//           ...item,
+//         }))
+//       );
+
+//     navigator.clipboard
+//       .writeText(JSON.stringify(allMenuItems, null, 2))
+//       .then(() => {
+//         setCopySuccess(true);
+//         setTimeout(() => setCopySuccess(false), 3000);
+//       })
+//       .catch((err) => setError(`Failed to copy: ${err.message}`));
+//   };
+
+//   // Get total number of extracted menu items
+//   const getTotalMenuItems = () =>
+//     combinedData.reduce(
+//       (total, result) =>
+//         !result.error && result.data && Array.isArray(result.data)
+//           ? total + result.data.length
+//           : total,
+//       0
+//     );
+
+//   // Check if any items have images
+//   const hasGeneratedImages = () => {
+//     return combinedData.some(
+//       (result) =>
+//         !result.error &&
+//         result.data &&
+//         Array.isArray(result.data) &&
+//         result.data.some((item) => item.image)
+//     );
+//   };
+
+//   // Count items with partial images
+//   const getItemsWithImages = () => {
+//     return combinedData.reduce((count, result) => {
+//       if (!result.error && result.data && Array.isArray(result.data)) {
+//         return count + result.data.filter((item) => item.image).length;
+//       }
+//       return count;
+//     }, 0);
+//   };
+
+//   // Add this new function after the existing functions
+//   const handlePastedJsonSubmit = async () => {
+//     try {
+//       // Parse the pasted JSON
+//       const parsedData = JSON.parse(pastedJson);
+      
+//       if (!Array.isArray(parsedData)) {
+//         setPastedJsonError("Please paste a valid JSON array");
+//         return;
+//       }
+
+//       // Validate each item has required fields
+//       const isValid = parsedData.every(item => 
+//         typeof item === 'object' && 
+//         item !== null && 
+//         typeof item.name === 'string' &&
+//         typeof item.price === 'number' &&
+//         typeof item.description === 'string' &&
+//         typeof item.category === 'string'
+//       );
+
+//       if (!isValid) {
+//         setPastedJsonError("Each item must have name, price, description, and category fields");
+//         return;
+//       }
+
+//       // Create a new result object with the pasted data
+//       const newResult = {
+//         filename: "pasted_json",
+//         data: parsedData
+//       };
+
+//       // Add to combinedData
+//       setCombinedData(prev => [...prev, newResult]);
+//       setPastedJson("");
+//       setPastedJsonError(null);
+//     } catch (err) {
+//       setPastedJsonError(`Invalid JSON: ${err.message}`);
+//     }
+//   };
+
+//   return (
+//     <div className="container">
+//       <h2>Restaurant Menu Extractor</h2>
+
+//       {/* Add the new JSON paste section before the drag & drop area */}
+//       <div className="json-paste-section">
+//         <h3>Or Paste JSON Data</h3>
+//         <div className="json-input-container">
+//           <textarea
+//             value={pastedJson}
+//             onChange={(e) => {
+//               setPastedJson(e.target.value);
+//               setPastedJsonError(null);
+//             }}
+//             placeholder="Paste your JSON array here..."
+//             className="json-textarea"
+//           />
+//           <button 
+//             onClick={handlePastedJsonSubmit}
+//             disabled={!pastedJson.trim()}
+//             className="submit-json-button"
+//           >
+//             Submit JSON
+//           </button>
+//         </div>
+//         {pastedJsonError && (
+//           <div className="error-message">
+//             <div>
+//               <strong>Error:</strong> {pastedJsonError}
+//             </div>
+//             <button onClick={() => setPastedJsonError(null)} className="error-close-button">
+//               ×
+//             </button>
+//           </div>
+//         )}
+//       </div>
+
+//       {/* Drag & Drop Area */}
+//       <div
+//         ref={dropAreaRef}
+//         className={`drop-area ${isDragging ? "dragging" : ""}`}
+//       >
+//         <div className="drop-area-content">
+//           <h3>Add Menu Images</h3>
+//           <p>Drag & drop images here, paste from clipboard, or select files</p>
+
+//           <div className="button-container">
+//             <label htmlFor="file-upload" className="file-select-button">
+//               Select Images
+//             </label>
+//             <input
+//               id="file-upload"
+//               type="file"
+//               accept="image/*"
+//               multiple
+//               onChange={handleFileChange}
+//               className="file-input"
+//             />
+//           </div>
+//         </div>
+
+//         {/* File preview area */}
+//         {files.length > 0 && (
+//           <div>
+//             <div className="preview-header">
+//               <h4>Selected Images ({files.length})</h4>
+//               <button onClick={clearAllFiles} className="clear-button">
+//                 Clear All
+//               </button>
+//             </div>
+
+//             <div className="preview-container">
+//               {files.map((file, index) => (
+//                 <div key={index} className="image-preview">
+//                   <img
+//                     src={URL.createObjectURL(file)}
+//                     alt={`Preview ${index}`}
+//                     className="preview-image"
+//                   />
+//                   <button
+//                     onClick={() => removeFile(index)}
+//                     className="remove-button"
+//                   >
+//                     ×
+//                   </button>
+//                   <div className="file-name-label">
+//                     {file.name.length > 10
+//                       ? file.name.substring(0, 10) + "..."
+//                       : file.name}
+//                   </div>
+//                 </div>
+//               ))}
+//             </div>
+//           </div>
+//         )}
+//       </div>
+
+//       {/* Action buttons */}
+//       <div className="action-buttons">
+//         <button
+//           onClick={handleSubmit}
+//           disabled={loading || files.length === 0}
+//           className="process-button"
+//         >
+//           {loading
+//             ? `Processing... (${processedCount}/${files.length})`
+//             : `Process ${files.length} Images`}
+//         </button>
+
+//         {combinedData.length > 0 && (
+//           <button
+//             onClick={copyToClipboard}
+//             className={`copy-button ${copySuccess ? "success" : ""}`}
+//           >
+//             {copySuccess
+//               ? "Copied!"
+//               : `Copy All Menu Items (${getTotalMenuItems()})`}
+//           </button>
+//         )}
+//       </div>
+
+//       {/* Status messages */}
+//       {error && (
+//         <div className="error-message">
+//           <div>
+//             <strong>Error:</strong> {error}
+//           </div>
+//           <button onClick={() => setError(null)} className="error-close-button">
+//             ×
+//           </button>
+//         </div>
+//       )}
+
+//       {/* Combined Result Summary */}
+//       {combinedData.length > 0 && (
+//         <div className="results-summary">
+//           <h3>Combined Results</h3>
+//           <p>
+//             <strong>Total menu items extracted:</strong> {getTotalMenuItems()}
+//           </p>
+//           <p>
+//             <strong>Images processed:</strong> {combinedData.length}
+//           </p>
+
+//           {/* Image Generation Button Section */}
+//           <div className="image-generation-section">
+//             <div className="image-button-group">
+//               <button
+//                 onClick={handleGenerateImages}
+//                 disabled={
+//                   imageGenerationLoading ||
+//                   partialImageLoading ||
+//                   getTotalMenuItems() === 0
+//                 }
+//                 className="generate-images-button"
+//               >
+//                 {imageGenerationLoading
+//                   ? `Generating Images... (${imageProcessedCount}/${getTotalMenuItems()})`
+//                   : hasGeneratedImages()
+//                   ? "Regenerate All Dish Images"
+//                   : "Generate Images for All Dishes"}
+//               </button>
+
+//               <button
+//                 onClick={handlePartialImageGeneration}
+//                 disabled={
+//                   imageGenerationLoading ||
+//                  mutlipleImageLoading ||
+//                   getTotalMenuItems() === 0
+//                 }
+//                 className="generate-images-button partial"
+//               >
+//                 {partialImageLoading
+//                   ? `Generating Partial Images... (${imageProcessedCount}/${getTotalMenuItems()})`
+//                   : "Partially Generate Images"}
+//               </button>
+
+//               <button
+//                 onClick={multipleImageGeneration}
+//                 disabled={
+//                   imageGenerationLoading ||
+//                   mutlipleImageLoading||
+//                   getTotalMenuItems() === 0
+//                 }
+//                 className="generate-images-button partial"
+//               >
+//                 {mutlipleImageLoading
+//                   ? `Generating Multiple Images... (${imageProcessedCount}/${getTotalMenuItems()})`
+//                   : "Generate Multiple Images"}
+//               </button>
+//             </div>
+
+//             {(imageGenerationLoading || partialImageLoading) && (
+//               <div className="progress-bar-container">
+//                 <div
+//                   className="progress-bar"
+//                   style={{
+//                     width: `${Math.round(
+//                       (imageProcessedCount / getTotalMenuItems()) * 100
+//                     )}%`,
+//                   }}
+//                 ></div>
+//                 <div className="progress-text">
+//                   {Math.round(
+//                     (imageProcessedCount / getTotalMenuItems()) * 100
+//                   )}
+//                   %
+//                 </div>
+//               </div>
+//             )}
+
+//             {/* Image generation stats */}
+//             {hasGeneratedImages() && (
+//               <div className="image-stats">
+//                 <p>
+//                   <strong>Items with generated images:</strong>{" "}
+//                   {getItemsWithImages()} of {getTotalMenuItems()}(
+//                   {Math.round(
+//                     (getItemsWithImages() / getTotalMenuItems()) * 100
+//                   )}
+//                   %)
+//                 </p>
+//               </div>
+//             )}
+//           </div>
+
+//           <div className="json-preview">
+//             <pre className="json-content">
+//               {JSON.stringify(
+//                 combinedData
+//                   .filter((result) => !result.error && result.data)
+//                   .flatMap((result) => result.data),
+//                 null,
+//                 2
+//               )}
+//             </pre>
+//           </div>
+
+//           {/* Menu Items Display Section */}
+//         <GalleryCardIetms combinedData={combinedData}/>
+//         </div>
+//       )}
+//     </div>
+//   );
+// }
+
+// export default App;
+
+
 import React, { useState, useRef, useEffect } from "react";
 import axios from "axios";
 import "./App.css";
+import GalleryCardIetms from "./components/GalleryCardIetms";
 
 const TOGETHER_API_KEY =
   "ffd96bebc08219a7dd524b0846b1c4fd6d603c5142343ec7fe6157d8dde2bf7c";
@@ -16,6 +928,7 @@ function App() {
   const [isDragging, setIsDragging] = useState(false);
   const [copySuccess, setCopySuccess] = useState(false);
   const [partialImageLoading, setPartialImageLoading] = useState(false);
+  const [mutlipleImageLoading, setMutipleImageLoading] = useState(false);
   const [pastedJson, setPastedJson] = useState("");
   const [pastedJsonError, setPastedJsonError] = useState(null);
   const dropAreaRef = useRef(null);
@@ -99,7 +1012,12 @@ function App() {
 
   const removeFile = (index) =>
     setFiles((prev) => prev.filter((_, i) => i !== index));
-  const clearAllFiles = () => setFiles([]);
+
+  const clearAllFiles = () => {
+    setFiles([]);
+    // Reset all data when clearing files
+    setCombinedData([]);
+  };
 
   // Function to safely extract JSON from a string
   const extractJSON = (str) => {
@@ -386,11 +1304,82 @@ function App() {
     }
   };
 
+  const multipleImageGeneration = async () => {
+    // Get all menu items from combinedData
+    const allItems = combinedData
+      .filter(
+        (result) => !result.error && result.data && Array.isArray(result.data)
+      )
+      .flatMap((result) => result.data);
+
+    if (allItems.length === 0) {
+      setError("No menu items to generate images for");
+      return;
+    }
+
+    setMutipleImageLoading(true);
+    setImageProcessedCount(0);
+    setError(null);
+
+    try {
+      // Create a deep copy of combinedData
+      const updatedData = JSON.parse(JSON.stringify(combinedData));
+
+      // Send all dishes to the multiple image generation endpoint
+      const response = await axios.post(
+        "http://localhost:3000/multipleImages",
+        allItems,
+        {
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      // Process the response and update the data
+      if (response.data && Array.isArray(response.data)) {
+        // Create a map of dish name to images array for quick lookup
+        const dishImagesMap = {};
+        response.data.forEach((dish) => {
+          if (dish.name && dish.images && Array.isArray(dish.images)) {
+            dishImagesMap[dish.name] = dish.images;
+          }
+        });
+
+        // Update each dish in our data with its images array
+        let processedCount = 0;
+        updatedData.forEach((result) => {
+          if (!result.error && result.data && Array.isArray(result.data)) {
+            result.data.forEach((dish) => {
+              if (dishImagesMap[dish.name]) {
+                dish.images = dishImagesMap[dish.name];
+                processedCount++;
+                setImageProcessedCount(processedCount);
+              }
+            });
+          }
+        });
+
+        // Update the combinedData with the enhanced data
+        setCombinedData(updatedData);
+      } else {
+        throw new Error(
+          "Invalid response from multiple image generation server"
+        );
+      }
+    } catch (err) {
+      setError(`Multiple image generation error: ${err.message}`);
+    } finally {
+      setMutipleImageLoading(false);
+    }
+  };
+
   const handleSubmit = async () => {
     if (files.length === 0) return;
 
     setLoading(true);
     setError(null);
+    // Clear existing data when processing new files
     setCombinedData([]);
     setProcessedCount(0);
     setCopySuccess(false);
@@ -441,7 +1430,7 @@ function App() {
     setError(null);
 
     try {
-      // Create a deep copy of combinedData
+      // Create a deep copy of combinedData - this prevents adding to existing data
       const updatedData = JSON.parse(JSON.stringify(combinedData));
 
       // Send all dishes to the backend in a single request
@@ -471,6 +1460,7 @@ function App() {
           if (!result.error && result.data && Array.isArray(result.data)) {
             result.data.forEach((dish) => {
               if (dishImageMap[dish.name]) {
+                // Replace any existing image with the new one
                 dish.image = dishImageMap[dish.name];
                 processedCount++;
                 setImageProcessedCount(processedCount);
@@ -575,8 +1565,8 @@ function App() {
         data: parsedData
       };
 
-      // Add to combinedData
-      setCombinedData(prev => [...prev, newResult]);
+      // Replace existing data instead of adding to it
+      setCombinedData([newResult]);
       setPastedJson("");
       setPastedJsonError(null);
     } catch (err) {
@@ -736,6 +1726,7 @@ function App() {
                 disabled={
                   imageGenerationLoading ||
                   partialImageLoading ||
+                  mutlipleImageLoading ||
                   getTotalMenuItems() === 0
                 }
                 className="generate-images-button"
@@ -752,6 +1743,7 @@ function App() {
                 disabled={
                   imageGenerationLoading ||
                   partialImageLoading ||
+                  mutlipleImageLoading ||
                   getTotalMenuItems() === 0
                 }
                 className="generate-images-button partial"
@@ -760,9 +1752,24 @@ function App() {
                   ? `Generating Partial Images... (${imageProcessedCount}/${getTotalMenuItems()})`
                   : "Partially Generate Images"}
               </button>
+
+              <button
+                onClick={multipleImageGeneration}
+                disabled={
+                  imageGenerationLoading ||
+                  partialImageLoading ||
+                  mutlipleImageLoading ||
+                  getTotalMenuItems() === 0
+                }
+                className="generate-images-button partial"
+              >
+                {mutlipleImageLoading
+                  ? `Generating Multiple Images... (${imageProcessedCount}/${getTotalMenuItems()})`
+                  : "Generate Multiple Images"}
+              </button>
             </div>
 
-            {(imageGenerationLoading || partialImageLoading) && (
+            {(imageGenerationLoading || partialImageLoading || mutlipleImageLoading) && (
               <div className="progress-bar-container">
                 <div
                   className="progress-bar"
@@ -809,33 +1816,7 @@ function App() {
           </div>
 
           {/* Menu Items Display Section */}
-          <div className="menu-items-display">
-            <h3>Menu Items Gallery</h3>
-            <div className="menu-items-grid">
-              {combinedData
-                .filter((result) => !result.error && result.data)
-                .flatMap((result) => result.data)
-                .map((item, index) => (
-                  <div key={index} className="menu-item-card">
-                    {item.image && (
-                      <div className="menu-item-image">
-                        <img src={item.image} alt={item.name} />
-                      </div>
-                    )}
-                    <div className="menu-item-details">
-                      <h4 className="menu-item-name">{item.name}</h4>
-                      <p className="menu-item-category">{item.category}</p>
-                      <p className="menu-item-description">
-                        {item.description}
-                      </p>
-                      <p className="menu-item-price">
-                        ${item.price ? item.price.toFixed(2) : 'N/A'}
-                      </p>
-                    </div>
-                  </div>
-                ))}
-            </div>
-          </div>
+          <GalleryCardIetms combinedData={combinedData}/>
         </div>
       )}
     </div>
