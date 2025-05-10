@@ -20,8 +20,8 @@
     "express": "^5.1.0",
     "node-fetch": "^3.3.2",
     "nodemon": "^3.1.10",
-    "puppeteer": "^22.15.0",
-    "puppeteer-extra": "^3.3.8",
+    "puppeteer": "^24.8.2",
+    "puppeteer-extra": "^3.3.6",
     "puppeteer-extra-plugin-recaptcha": "^3.6.8",
     "puppeteer-extra-plugin-stealth": "^2.11.2"
   }

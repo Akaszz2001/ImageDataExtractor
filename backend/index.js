@@ -1,7 +1,5 @@
-
-
 const express = require("express");
-const puppeteer = require('puppeteer-extra');
+const puppeteer = require("puppeteer-extra");
 const StealthPlugin = require("puppeteer-extra-plugin-stealth");
 const fs = require("fs").promises;
 
@@ -11,7 +9,6 @@ puppeteer.use(StealthPlugin());
 const app = express();
 
 const cors = require("cors");
-
 
 app.use(
   cors({
@@ -29,8 +26,6 @@ app.use(express.json());
 console.log("Current working directory:", process.cwd());
 
 //PROPERLY WORKING BUT SEARCH IMAGE IN GOOGLE AND BING MAKES DELAY
-
-
 
 // app.post("/fullImages", async (req, res) => {
 //   const dishes = req.body;
@@ -58,9 +53,6 @@ console.log("Current working directory:", process.cwd());
 //       ignoreHTTPSErrors: true,
 //     });
 
-
-
-    
 //     const page = await browser.newPage();
 
 //     // Enhanced stealth settings
@@ -373,20 +365,14 @@ console.log("Current working directory:", process.cwd());
 //   }
 // });
 
-
-
-
-
-
-//PORPERLY WORKING SERACHING ONLY IN BING BUT DOUBT IN IMAGE QUALITY 
 app.post("/fullImages", async (req, res) => {
   const dishes = req.body;
   console.log(`Processing ${dishes.length} dishes`);
 
   let browser = null;
+  const concurrencyLimit = 3;
 
   try {
-    // Launch browser with stealth mode
     browser = await puppeteer.launch({
       headless: true,
       args: [
@@ -405,267 +391,85 @@ app.post("/fullImages", async (req, res) => {
       ignoreHTTPSErrors: true,
     });
 
-
-
-    
-    const page = await browser.newPage();
-
-    // Enhanced stealth settings
-    await page.setViewport({ width: 1920, height: 1080 });
-    await page.setUserAgent(
-      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.5060.53 Safari/537.36"
-    );
-    await page.setExtraHTTPHeaders({
-      "Accept-Language": "en-US,en;q=0.9",
-      Accept:
-        "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
-      Referer: "https://www.google.com/",
-    });
-
-    // Add additional stealth techniques to avoid detection
-    await page.evaluateOnNewDocument(() => {
-      // Overwrite the navigator properties
-      Object.defineProperty(navigator, "webdriver", {
-        get: () => false,
-      });
-
-      // Create a fake plugins array
-      Object.defineProperty(navigator, "plugins", {
-        get: () => [
-          { name: "Chrome PDF Plugin", filename: "internal-pdf-viewer" },
-          {
-            name: "Chrome PDF Viewer",
-            filename: "mhjfbmdgcfjbbpaeojofohoefgiehjai",
-          },
-          { name: "Native Client", filename: "internal-nacl-plugin" },
-        ],
-      });
-    });
-
-    for (let i = 0; i < dishes.length; i++) {
-      const dish = dishes[i];
-      console.log(`Processing dish ${i + 1}/${dishes.length}: ${dish.name}`);
+    const processDish = async (dish) => {
+      const page = await browser.newPage();
 
       try {
-        // Enhanced search query with more specific terms for better food images
-        let imageUrl = null;
-
-        /* Google Images search removed as requested
-        // First try Google Images with optimized search parameters
-        const googleQuery = encodeURIComponent(
-          `${dish.name} ${dish.category} food dish professional photography high resolution`
+        await page.setViewport({ width: 1920, height: 1080 });
+        await page.setUserAgent(
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.5060.53 Safari/537.36"
         );
-        const googleUrl = `https://www.google.com/search?q=${googleQuery}&tbm=isch&tbs=isz:l,itp:photo`;
 
-        console.log(`Searching Google Images: ${googleUrl}`);
-
-        await page.goto(googleUrl, {
-          waitUntil: "networkidle2",
-          timeout: 30000,
+        await page.setExtraHTTPHeaders({
+          "Accept-Language": "en-US,en;q=0.9",
+          Accept:
+            "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+          Referer: "https://www.google.com/",
         });
 
-        // Wait for images to load using evaluate instead of waitForTimeout
-        await page.evaluate(() => {
-          return new Promise((resolve) => setTimeout(resolve, 3000));
-        });
-
-        // Enhanced image extraction with quality focus
-        imageUrl = await page.evaluate(() => {
-          // Helper function to calculate image quality score
-          const getImageQualityScore = (img) => {
-            let score = 0;
-
-            // Prefer larger images
-            if (img.naturalWidth > 500) score += 5;
-            if (img.naturalWidth > 800) score += 10;
-
-            // Check image dimensions ratio (food photos often have aspect ratios close to 4:3 or 16:9)
-            const ratio = img.naturalWidth / img.naturalHeight;
-            if (ratio >= 1.2 && ratio <= 1.8) score += 5;
-
-            // Avoid tiny images
-            if (img.naturalWidth < 200 || img.naturalHeight < 200) score -= 20;
-
-            // Avoid icons and logos
-            if (img.naturalWidth < 100 && img.naturalHeight < 100) score -= 10;
-
-            return score;
-          };
-
-          // Helper to extract and validate image URLs
-          const getValidImageUrl = (img) => {
-            // Try various source attributes
-            const sources = [
-              img.src,
-              img.dataset.src,
-              img.dataset.iurl,
-              img.getAttribute("data-high-quality-src"),
-              img.getAttribute("data-original"),
-            ];
-
-            for (const src of sources) {
-              if (
-                src &&
-                src.startsWith("http") &&
-                !src.includes("gstatic.com") &&
-                !src.includes("google.com/images") &&
-                !src.includes("google.com/logos") &&
-                !src.includes("placeholder.com")
-              ) {
-                return src;
-              }
-            }
-
-            // Check srcset for highest resolution
-            const srcset = img.getAttribute("srcset");
-            if (srcset) {
-              const sources = srcset.split(",");
-              const lastSource = sources[sources.length - 1]
-                .trim()
-                .split(" ")[0];
-              if (lastSource && lastSource.startsWith("http")) {
-                return lastSource;
-              }
-            }
-
-            return null;
-          };
-
-          // Target high-quality images first
-          const imageSelectors = [
-            // Google image results with high quality
-            "img.Q4LuWd",
-            "img.rg_i",
-            ".isv-r img",
-            // Specific targeting for large preview images
-            "div[data-ved] img",
-            // General image selectors
-            "a img",
-            ".images img",
-            '[role="listitem"] img',
-          ];
-
-          // Collect all images and sort by quality score
-          const imageData = [];
-
-          for (const selector of imageSelectors) {
-            document.querySelectorAll(selector).forEach((img) => {
-              const url = getValidImageUrl(img);
-              if (url) {
-                imageData.push({
-                  url: url,
-                  score: getImageQualityScore(img),
-                });
-              }
-            });
-          }
-
-          // Get higher resolution from image links
-          document.querySelectorAll('a[href*="imgres"]').forEach((link) => {
-            const href = link.href;
-            const match = href.match(/imgurl=([^&]+)/);
-            if (match && match[1]) {
-              const url = decodeURIComponent(match[1]);
-              if (url.startsWith("http")) {
-                imageData.push({
-                  url: url,
-                  score: 15, // Higher base score for full resolution images
-                });
-              }
-            }
+        await page.evaluateOnNewDocument(() => {
+          Object.defineProperty(navigator, "webdriver", {
+            get: () => false,
           });
 
-          // Sort by quality score and return best image
-          imageData.sort((a, b) => b.score - a.score);
-          return imageData.length > 0 ? imageData[0].url : null;
+          Object.defineProperty(navigator, "plugins", {
+            get: () => [
+              { name: "Chrome PDF Plugin", filename: "internal-pdf-viewer" },
+              {
+                name: "Chrome PDF Viewer",
+                filename: "mhjfbmdgcfjbbpaeojofohoefgiehjai",
+              },
+              { name: "Native Client", filename: "internal-nacl-plugin" },  
+            ],
+          });
         });
-        */
 
-        // Use Bing Images directly as the primary image source
         const bingQuery = encodeURIComponent(
-          `${dish.name} ${dish.category} food high quality`
+          `${dish.name} ${dish.category} ${dish.description} food high quality`
         );
         const bingUrl = `https://www.bing.com/images/search?q=${bingQuery}&qft=+filterui:imagesize-large`;
 
-        console.log(`Searching Bing Images: ${bingUrl}`);
+        await page.setRequestInterception(true);
+        page.on("request", (req) => {
+          const blocked = ["stylesheet", "font", "script"];
+          if (blocked.includes(req.resourceType())) {
+            req.abort();
+          } else {
+            req.continue();
+          }
+        });
 
         await page.goto(bingUrl, {
           waitUntil: "networkidle2",
           timeout: 30000,
         });
 
-        // Wait for images to load using evaluate instead of waitForTimeout
-        await page.evaluate(() => {
-          return new Promise((resolve) => setTimeout(resolve, 3000));
+        // await page.waitForTimeout(3000); // Let images load
+        // await new Promise((res) => setTimeout(res, 3000));
+        await page.waitForSelector("img.mimg, .iusc img, .imgpt img, img", {
+          timeout: 5000,
         });
 
-        imageUrl = await page.evaluate(() => {
-          // Helper to extract valid image URLs
+        const imageUrl = await page.evaluate(() => {
           const getValidImageUrl = (element) => {
-            // Try data-src attribute first (Bing often uses this for lazy loading)
-            if (
-              element.dataset.src &&
-              element.dataset.src.startsWith("http")
-            ) {
+            if (element.dataset.src && element.dataset.src.startsWith("http"))
               return element.dataset.src;
-            }
-
-            // Check regular src
-            if (element.src && element.src.startsWith("http")) {
+            if (element.src && element.src.startsWith("http"))
               return element.src;
-            }
-
-            // Check m attribute which often contains the actual image URL in Bing
             if (element.getAttribute("m")) {
               try {
                 const mData = JSON.parse(element.getAttribute("m"));
-                if (mData.murl && mData.murl.startsWith("http")) {
-                  return mData.murl; // This often contains the full-resolution image
-                }
-              } catch (e) {
-                // Parse error, ignore
-              }
+                if (mData.murl && mData.murl.startsWith("http"))
+                  return mData.murl;
+              } catch (e) {}
             }
-
             return null;
           };
 
-          // First try to get the main result images
-          const mainImages = document.querySelectorAll(
-            ".mimg, .iusc img, .imgpt img"
-          );
-          for (const img of mainImages) {
-            const url = getValidImageUrl(img);
-            if (url) return url;
-          }
-
-          // Then try other image containers
-          const containers = document.querySelectorAll(".iusc");
-          for (const container of containers) {
-            // Try to extract from m attribute
-            if (container.getAttribute("m")) {
-              try {
-                const mData = JSON.parse(container.getAttribute("m"));
-                if (mData.murl && mData.murl.startsWith("http")) {
-                  return mData.murl;
-                }
-              } catch (e) {
-                // Parse error, ignore
-              }
-            }
-
-            // Try images inside the container
-            const imgs = container.querySelectorAll("img");
+          const selectors = [".mimg", ".iusc img", ".imgpt img", "img"];
+          for (const sel of selectors) {
+            const imgs = document.querySelectorAll(sel);
             for (const img of imgs) {
-              const url = getValidImageUrl(img);
-              if (url) return url;
-            }
-          }
-
-          // Fallback to any valid image
-          const allImages = document.querySelectorAll("img");
-          for (const img of allImages) {
-            if (img.width > 200 && img.height > 200) {
               const url = getValidImageUrl(img);
               if (url) return url;
             }
@@ -675,39 +479,40 @@ app.post("/fullImages", async (req, res) => {
         });
 
         if (imageUrl) {
-          console.log(
-            `✅ Found high-quality image for ${dish.name}: ${imageUrl.substring(
-              0,
-              50
-            )}...`
-          );
           dish.image = imageUrl;
         } else {
-          console.log(`❌ No image found for ${dish.name}`);
-          // Using a better placeholder with category and dish name
           dish.image = `https://via.placeholder.com/800x600?text=${encodeURIComponent(
             `${dish.category}: ${dish.name}`
           )}`;
         }
-
-        // Add a randomized delay between requests to avoid detection
-        // Using page.evaluate with setTimeout instead of page.waitForTimeout
-        const delay = 4000 + Math.floor(Math.random() * 4000); // 4-8 second random delay
-        console.log(`Waiting ${delay}ms before next request`);
-        await page.evaluate((waitTime) => {
-          return new Promise((resolve) => setTimeout(resolve, waitTime));
-        }, delay);
       } catch (err) {
         console.error(`Error processing ${dish.name}:`, err);
-        // Mark the error but still provide a placeholder
         dish.image = `https://via.placeholder.com/800x600?text=${encodeURIComponent(
           `${dish.category}: ${dish.name}`
         )}`;
         dish.imageError = err.message;
+      } finally {
+        await page.close();
+      }
+    };
+
+    // Batch process dishes with concurrency limit
+    let index = 0;
+    while (index < dishes.length) {
+      const batch = dishes.slice(index, index + concurrencyLimit);
+      console.log(`Processing batch: ${index + 1} to ${index + batch.length}`);
+      await Promise.all(batch.map((dish) => processDish(dish)));
+
+      index += concurrencyLimit;
+
+      if (index < dishes.length) {
+        const delay = 2000 + Math.random() * 3000;
+        console.log(`Waiting ${Math.round(delay)}ms before next batch...`);
+        await new Promise((res) => setTimeout(res, delay));
       }
     }
 
-    console.log("Finished processing all dishes with high-quality images");
+    console.log("Finished processing all dishes");
     res.json(dishes);
   } catch (err) {
     console.error("Server error:", err);
@@ -720,9 +525,7 @@ app.post("/fullImages", async (req, res) => {
   }
 });
 
-
-// ROUTE IS FAST AND BETTER IMAGES BUT MOST TIME WRONG IMAGES CAME
-
+//PORPERLY WORKING SERACHING ONLY IN BING BUT DOUBT IN IMAGE QUALITY
 // app.post("/fullImages", async (req, res) => {
 //   const dishes = req.body;
 //   console.log(`Processing ${dishes.length} dishes`);
@@ -749,9 +552,6 @@ app.post("/fullImages", async (req, res) => {
 //       ignoreHTTPSErrors: true,
 //     });
 
-
-
-    
 //     const page = await browser.newPage();
 
 //     // Enhanced stealth settings
@@ -793,7 +593,347 @@ app.post("/fullImages", async (req, res) => {
 //       try {
 //         // Enhanced search query with more specific terms for better food images
 //         let imageUrl = null;
-        
+
+//         /* Google Images search removed as requested
+//         // First try Google Images with optimized search parameters
+//         const googleQuery = encodeURIComponent(
+//           `${dish.name} ${dish.category} food dish professional photography high resolution`
+//         );
+//         const googleUrl = `https://www.google.com/search?q=${googleQuery}&tbm=isch&tbs=isz:l,itp:photo`;
+
+//         console.log(`Searching Google Images: ${googleUrl}`);
+
+//         await page.goto(googleUrl, {
+//           waitUntil: "networkidle2",
+//           timeout: 30000,
+//         });
+
+//         // Wait for images to load using evaluate instead of waitForTimeout
+//         await page.evaluate(() => {
+//           return new Promise((resolve) => setTimeout(resolve, 3000));
+//         });
+
+//         // Enhanced image extraction with quality focus
+//         imageUrl = await page.evaluate(() => {
+//           // Helper function to calculate image quality score
+//           const getImageQualityScore = (img) => {
+//             let score = 0;
+
+//             // Prefer larger images
+//             if (img.naturalWidth > 500) score += 5;
+//             if (img.naturalWidth > 800) score += 10;
+
+//             // Check image dimensions ratio (food photos often have aspect ratios close to 4:3 or 16:9)
+//             const ratio = img.naturalWidth / img.naturalHeight;
+//             if (ratio >= 1.2 && ratio <= 1.8) score += 5;
+
+//             // Avoid tiny images
+//             if (img.naturalWidth < 200 || img.naturalHeight < 200) score -= 20;
+
+//             // Avoid icons and logos
+//             if (img.naturalWidth < 100 && img.naturalHeight < 100) score -= 10;
+
+//             return score;
+//           };
+
+//           // Helper to extract and validate image URLs
+//           const getValidImageUrl = (img) => {
+//             // Try various source attributes
+//             const sources = [
+//               img.src,
+//               img.dataset.src,
+//               img.dataset.iurl,
+//               img.getAttribute("data-high-quality-src"),
+//               img.getAttribute("data-original"),
+//             ];
+
+//             for (const src of sources) {
+//               if (
+//                 src &&
+//                 src.startsWith("http") &&
+//                 !src.includes("gstatic.com") &&
+//                 !src.includes("google.com/images") &&
+//                 !src.includes("google.com/logos") &&
+//                 !src.includes("placeholder.com")
+//               ) {
+//                 return src;
+//               }
+//             }
+
+//             // Check srcset for highest resolution
+//             const srcset = img.getAttribute("srcset");
+//             if (srcset) {
+//               const sources = srcset.split(",");
+//               const lastSource = sources[sources.length - 1]
+//                 .trim()
+//                 .split(" ")[0];
+//               if (lastSource && lastSource.startsWith("http")) {
+//                 return lastSource;
+//               }
+//             }
+
+//             return null;
+//           };
+
+//           // Target high-quality images first
+//           const imageSelectors = [
+//             // Google image results with high quality
+//             "img.Q4LuWd",
+//             "img.rg_i",
+//             ".isv-r img",
+//             // Specific targeting for large preview images
+//             "div[data-ved] img",
+//             // General image selectors
+//             "a img",
+//             ".images img",
+//             '[role="listitem"] img',
+//           ];
+
+//           // Collect all images and sort by quality score
+//           const imageData = [];
+
+//           for (const selector of imageSelectors) {
+//             document.querySelectorAll(selector).forEach((img) => {
+//               const url = getValidImageUrl(img);
+//               if (url) {
+//                 imageData.push({
+//                   url: url,
+//                   score: getImageQualityScore(img),
+//                 });
+//               }
+//             });
+//           }
+
+//           // Get higher resolution from image links
+//           document.querySelectorAll('a[href*="imgres"]').forEach((link) => {
+//             const href = link.href;
+//             const match = href.match(/imgurl=([^&]+)/);
+//             if (match && match[1]) {
+//               const url = decodeURIComponent(match[1]);
+//               if (url.startsWith("http")) {
+//                 imageData.push({
+//                   url: url,
+//                   score: 15, // Higher base score for full resolution images
+//                 });
+//               }
+//             }
+//           });
+
+//           // Sort by quality score and return best image
+//           imageData.sort((a, b) => b.score - a.score);
+//           return imageData.length > 0 ? imageData[0].url : null;
+//         });
+//         */
+
+//         // Use Bing Images directly as the primary image source
+//         const bingQuery = encodeURIComponent(
+//           `${dish.name} ${dish.category} food high quality`
+//         );
+//         const bingUrl = `https://www.bing.com/images/search?q=${bingQuery}&qft=+filterui:imagesize-large`;
+
+//         console.log(`Searching Bing Images: ${bingUrl}`);
+
+//         await page.goto(bingUrl, {
+//           waitUntil: "networkidle2",
+//           timeout: 30000,
+//         });
+
+//         // Wait for images to load using evaluate instead of waitForTimeout
+//         await page.evaluate(() => {
+//           return new Promise((resolve) => setTimeout(resolve, 3000));
+//         });
+
+//         imageUrl = await page.evaluate(() => {
+//           // Helper to extract valid image URLs
+//           const getValidImageUrl = (element) => {
+//             // Try data-src attribute first (Bing often uses this for lazy loading)
+//             if (
+//               element.dataset.src &&
+//               element.dataset.src.startsWith("http")
+//             ) {
+//               return element.dataset.src;
+//             }
+
+//             // Check regular src
+//             if (element.src && element.src.startsWith("http")) {
+//               return element.src;
+//             }
+
+//             // Check m attribute which often contains the actual image URL in Bing
+//             if (element.getAttribute("m")) {
+//               try {
+//                 const mData = JSON.parse(element.getAttribute("m"));
+//                 if (mData.murl && mData.murl.startsWith("http")) {
+//                   return mData.murl; // This often contains the full-resolution image
+//                 }
+//               } catch (e) {
+//                 // Parse error, ignore
+//               }
+//             }
+
+//             return null;
+//           };
+
+//           // First try to get the main result images
+//           const mainImages = document.querySelectorAll(
+//             ".mimg, .iusc img, .imgpt img"
+//           );
+//           for (const img of mainImages) {
+//             const url = getValidImageUrl(img);
+//             if (url) return url;
+//           }
+
+//           // Then try other image containers
+//           const containers = document.querySelectorAll(".iusc");
+//           for (const container of containers) {
+//             // Try to extract from m attribute
+//             if (container.getAttribute("m")) {
+//               try {
+//                 const mData = JSON.parse(container.getAttribute("m"));
+//                 if (mData.murl && mData.murl.startsWith("http")) {
+//                   return mData.murl;
+//                 }
+//               } catch (e) {
+//                 // Parse error, ignore
+//               }
+//             }
+
+//             // Try images inside the container
+//             const imgs = container.querySelectorAll("img");
+//             for (const img of imgs) {
+//               const url = getValidImageUrl(img);
+//               if (url) return url;
+//             }
+//           }
+
+//           // Fallback to any valid image
+//           const allImages = document.querySelectorAll("img");
+//           for (const img of allImages) {
+//             if (img.width > 200 && img.height > 200) {
+//               const url = getValidImageUrl(img);
+//               if (url) return url;
+//             }
+//           }
+
+//           return null;
+//         });
+
+//         if (imageUrl) {
+//           console.log(
+//             `✅ Found high-quality image for ${dish.name}: ${imageUrl.substring(
+//               0,
+//               50
+//             )}...`
+//           );
+//           dish.image = imageUrl;
+//         } else {
+//           console.log(`❌ No image found for ${dish.name}`);
+//           // Using a better placeholder with category and dish name
+//           dish.image = `https://via.placeholder.com/800x600?text=${encodeURIComponent(
+//             `${dish.category}: ${dish.name}`
+//           )}`;
+//         }
+
+//         // Add a randomized delay between requests to avoid detection
+//         // Using page.evaluate with setTimeout instead of page.waitForTimeout
+//         const delay = 4000 + Math.floor(Math.random() * 4000); // 4-8 second random delay
+//         console.log(`Waiting ${delay}ms before next request`);
+//         await page.evaluate((waitTime) => {
+//           return new Promise((resolve) => setTimeout(resolve, waitTime));
+//         }, delay);
+//       } catch (err) {
+//         console.error(`Error processing ${dish.name}:`, err);
+//         // Mark the error but still provide a placeholder
+//         dish.image = `https://via.placeholder.com/800x600?text=${encodeURIComponent(
+//           `${dish.category}: ${dish.name}`
+//         )}`;
+//         dish.imageError = err.message;
+//       }
+//     }
+
+//     console.log("Finished processing all dishes with high-quality images");
+//     res.json(dishes);
+//   } catch (err) {
+//     console.error("Server error:", err);
+//     res.status(500).json({ error: err.message });
+//   } finally {
+//     if (browser) {
+//       await browser.close();
+//       console.log("Browser closed");
+//     }
+//   }
+// });
+
+// ROUTE IS FAST AND BETTER IMAGES BUT MOST TIME WRONG IMAGES CAME
+
+// app.post("/fullImages", async (req, res) => {
+//   const dishes = req.body;
+//   console.log(`Processing ${dishes.length} dishes`);
+
+//   let browser = null;
+
+//   try {
+//     // Launch browser with stealth mode
+//     browser = await puppeteer.launch({
+//       headless: true,
+//       args: [
+//         "--no-sandbox",
+//         "--disable-setuid-sandbox",
+//         "--disable-infobars",
+//         "--window-position=0,0",
+//         "--ignore-certificate-errors",
+//         "--ignore-certificate-errors-skip-list",
+//         "--disable-dev-shm-usage",
+//         "--disable-accelerated-2d-canvas",
+//         "--disable-gpu",
+//         "--window-size=1920,1080",
+//         "--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.5060.53 Safari/537.36",
+//       ],
+//       ignoreHTTPSErrors: true,
+//     });
+
+//     const page = await browser.newPage();
+
+//     // Enhanced stealth settings
+//     await page.setViewport({ width: 1920, height: 1080 });
+//     await page.setUserAgent(
+//       "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.5060.53 Safari/537.36"
+//     );
+//     await page.setExtraHTTPHeaders({
+//       "Accept-Language": "en-US,en;q=0.9",
+//       Accept:
+//         "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+//       Referer: "https://www.google.com/",
+//     });
+
+//     // Add additional stealth techniques to avoid detection
+//     await page.evaluateOnNewDocument(() => {
+//       // Overwrite the navigator properties
+//       Object.defineProperty(navigator, "webdriver", {
+//         get: () => false,
+//       });
+
+//       // Create a fake plugins array
+//       Object.defineProperty(navigator, "plugins", {
+//         get: () => [
+//           { name: "Chrome PDF Plugin", filename: "internal-pdf-viewer" },
+//           {
+//             name: "Chrome PDF Viewer",
+//             filename: "mhjfbmdgcfjbbpaeojofohoefgiehjai",
+//           },
+//           { name: "Native Client", filename: "internal-nacl-plugin" },
+//         ],
+//       });
+//     });
+
+//     for (let i = 0; i < dishes.length; i++) {
+//       const dish = dishes[i];
+//       console.log(`Processing dish ${i + 1}/${dishes.length}: ${dish.name}`);
+
+//       try {
+//         // Enhanced search query with more specific terms for better food images
+//         let imageUrl = null;
+
 //         // Create more targeted search query based on dish type
 //         let extraTerms = "";
 //         if (dish.category) {
@@ -966,16 +1106,16 @@ app.post("/fullImages", async (req, res) => {
 //           // Helper to calculate image quality score
 //           const getImageQualityScore = (img, url) => {
 //             let score = 0;
-            
+
 //             // Prefer larger images
 //             if (img.naturalWidth > 500) score += 5;
 //             if (img.naturalWidth > 800) score += 10;
 //             if (img.naturalWidth > 1200) score += 15;
-            
+
 //             // Check image dimensions ratio (food photos often have aspect ratios close to 4:3 or 16:9)
 //             const ratio = img.naturalWidth / img.naturalHeight;
 //             if (ratio >= 1.2 && ratio <= 1.8) score += 5;
-            
+
 //             // Prefer sharper images (usually have certain keywords in URL)
 //             if (url) {
 //               if (url.includes('high') || url.includes('large')) score += 3;
@@ -983,13 +1123,13 @@ app.post("/fullImages", async (req, res) => {
 //               if (url.includes('professional') || url.includes('stock')) score += 5;
 //               if (url.includes('shutterstock') || url.includes('getty') || url.includes('istockphoto')) score += 5;
 //             }
-            
+
 //             // Avoid small images
 //             if (img.naturalWidth < 300 || img.naturalHeight < 300) score -= 10;
-            
+
 //             return score;
 //           };
-          
+
 //           // Enhanced helper to extract valid image URLs with quality focus
 //           const getValidImageUrl = (element) => {
 //             // Check m attribute first (best source for high-res Bing images)
@@ -1007,9 +1147,9 @@ app.post("/fullImages", async (req, res) => {
 //                 // Continue to other methods if parse error
 //               }
 //             }
-            
+
 //             let urlInfo = null;
-            
+
 //             // Check data-src (often high quality in Bing)
 //             if (element.dataset.src && element.dataset.src.startsWith("http")) {
 //               urlInfo = {
@@ -1017,7 +1157,7 @@ app.post("/fullImages", async (req, res) => {
 //                 score: getImageQualityScore(element, element.dataset.src)
 //               };
 //             }
-            
+
 //             // Check regular src if no data-src
 //             if (!urlInfo && element.src && element.src.startsWith("http") && !element.src.includes("data:image")) {
 //               urlInfo = {
@@ -1025,13 +1165,13 @@ app.post("/fullImages", async (req, res) => {
 //                 score: getImageQualityScore(element, element.src)
 //               };
 //             }
-            
+
 //             return urlInfo;
 //           };
 
 //           // Collect image data with quality scores
 //           const imageData = [];
-          
+
 //           // First collect from containers with m attribute (highest quality source)
 //           const containers = document.querySelectorAll(".iusc");
 //           for (const container of containers) {
@@ -1042,7 +1182,7 @@ app.post("/fullImages", async (req, res) => {
 //                   // Find the associated img element to get dimensions if possible
 //                   const img = container.querySelector('img');
 //                   let score = 20; // Base score for murl (typically high quality)
-                  
+
 //                   if (img) {
 //                     // Add quality based on dimensions
 //                     score += getImageQualityScore(img, mData.murl);
@@ -1051,7 +1191,7 @@ app.post("/fullImages", async (req, res) => {
 //                     if (mData.murl.includes('high')) score += 5;
 //                     if (mData.murl.includes('large')) score += 5;
 //                   }
-                  
+
 //                   imageData.push({
 //                     url: mData.murl,
 //                     score: score
@@ -1060,7 +1200,7 @@ app.post("/fullImages", async (req, res) => {
 //               } catch (e) {}
 //             }
 //           }
-          
+
 //           // Add main result images
 //           const mainImages = document.querySelectorAll(".mimg, .iusc img, .imgpt img");
 //           for (let i = 0; i < mainImages.length; i++) {
@@ -1159,9 +1299,6 @@ app.post("/fullImages", async (req, res) => {
 //       ignoreHTTPSErrors: true,
 //     });
 
-
-
-    
 //     const page = await browser.newPage();
 
 //     // Enhanced stealth settings
@@ -1203,7 +1340,7 @@ app.post("/fullImages", async (req, res) => {
 //       try {
 //         // Enhanced search query with strong focus on dish name and category for accuracy
 //         let imageUrl = null;
-        
+
 //         // Create more targeted search query based on dish type
 //         let extraTerms = "";
 //         if (dish.category) {
@@ -1386,16 +1523,16 @@ app.post("/fullImages", async (req, res) => {
 //           // Helper to calculate image quality score
 //           const getImageQualityScore = (img, url) => {
 //             let score = 0;
-            
+
 //             // Prefer larger images
 //             if (img.naturalWidth > 500) score += 5;
 //             if (img.naturalWidth > 800) score += 10;
 //             if (img.naturalWidth > 1200) score += 15;
-            
+
 //             // Check image dimensions ratio (food photos often have aspect ratios close to 4:3 or 16:9)
 //             const ratio = img.naturalWidth / img.naturalHeight;
 //             if (ratio >= 1.2 && ratio <= 1.8) score += 5;
-            
+
 //             // Prefer sharper images (usually have certain keywords in URL)
 //             if (url) {
 //               if (url.includes('high') || url.includes('large')) score += 3;
@@ -1403,13 +1540,13 @@ app.post("/fullImages", async (req, res) => {
 //               if (url.includes('professional') || url.includes('stock')) score += 5;
 //               if (url.includes('shutterstock') || url.includes('getty') || url.includes('istockphoto')) score += 5;
 //             }
-            
+
 //             // Avoid small images
 //             if (img.naturalWidth < 300 || img.naturalHeight < 300) score -= 10;
-            
+
 //             return score;
 //           };
-          
+
 //           // Enhanced helper to extract valid image URLs with quality focus
 //           const getValidImageUrl = (element) => {
 //             // Check m attribute first (best source for high-res Bing images)
@@ -1427,9 +1564,9 @@ app.post("/fullImages", async (req, res) => {
 //                 // Continue to other methods if parse error
 //               }
 //             }
-            
+
 //             let urlInfo = null;
-            
+
 //             // Check data-src (often high quality in Bing)
 //             if (element.dataset.src && element.dataset.src.startsWith("http")) {
 //               urlInfo = {
@@ -1437,7 +1574,7 @@ app.post("/fullImages", async (req, res) => {
 //                 score: getImageQualityScore(element, element.dataset.src)
 //               };
 //             }
-            
+
 //             // Check regular src if no data-src
 //             if (!urlInfo && element.src && element.src.startsWith("http") && !element.src.includes("data:image")) {
 //               urlInfo = {
@@ -1445,13 +1582,13 @@ app.post("/fullImages", async (req, res) => {
 //                 score: getImageQualityScore(element, element.src)
 //               };
 //             }
-            
+
 //             return urlInfo;
 //           };
 
 //           // Collect image data with quality scores
 //           const imageData = [];
-          
+
 //           // First collect from containers with m attribute (highest quality source)
 //           const containers = document.querySelectorAll(".iusc");
 //           for (const container of containers) {
@@ -1462,7 +1599,7 @@ app.post("/fullImages", async (req, res) => {
 //                   // Find the associated img element to get dimensions if possible
 //                   const img = container.querySelector('img');
 //                   let score = 20; // Base score for murl (typically high quality)
-                  
+
 //                   if (img) {
 //                     // Add quality based on dimensions
 //                     score += getImageQualityScore(img, mData.murl);
@@ -1471,7 +1608,7 @@ app.post("/fullImages", async (req, res) => {
 //                     if (mData.murl.includes('high')) score += 5;
 //                     if (mData.murl.includes('large')) score += 5;
 //                   }
-                  
+
 //                   imageData.push({
 //                     url: mData.murl,
 //                     score: score
@@ -1480,7 +1617,7 @@ app.post("/fullImages", async (req, res) => {
 //               } catch (e) {}
 //             }
 //           }
-          
+
 //           // Add main result images
 //           const mainImages = document.querySelectorAll(".mimg, .iusc img, .imgpt img");
 //           for (let i = 0; i < mainImages.length; i++) {
@@ -1552,7 +1689,6 @@ app.post("/fullImages", async (req, res) => {
 //   }
 // });
 
-
 // ROUTE IS FAST AND BETTER IMAGES BUT SOMETIME WRONG IMAGES CAME
 // app.post("/fullImages", async (req, res) => {
 //   const dishes = req.body;
@@ -1579,7 +1715,7 @@ app.post("/fullImages", async (req, res) => {
 //       ],
 //       ignoreHTTPSErrors: true,
 //     });
-    
+
 //     const page = await browser.newPage();
 
 //     // Enhanced stealth settings
@@ -1620,12 +1756,12 @@ app.post("/fullImages", async (req, res) => {
 
 //       try {
 //         let imageUrl = null;
-        
+
 //         // Create more specific search query that emphasizes the exact dish name
 //         // Avoid terms that lead to stock photos and focus on the actual dish
 //         const searchTerms = `${dish.name} food dish recipe homemade -shutterstock -getty -stock -logo`;
 //         const bingQuery = encodeURIComponent(searchTerms);
-        
+
 //         // Still use filters for quality but prioritize "all" images over just "large" to avoid missing good matches
 //         const bingUrl = `https://www.bing.com/images/search?q=${bingQuery}&qft=+filterui:photo-photo`;
 
@@ -1646,61 +1782,61 @@ app.post("/fullImages", async (req, res) => {
 //           // Helper to calculate image relevance score - prioritizing matching over raw dimensions
 //           const getImageRelevanceScore = (img, url, alt) => {
 //             let score = 0;
-            
+
 //             // Basic quality metrics - still important but weighted less than before
 //             if (img.naturalWidth > 400) score += 3;
 //             if (img.naturalWidth > 800) score += 5;
-            
+
 //             // Check for reasonable aspect ratio for food photos
 //             const ratio = img.naturalWidth / img.naturalHeight;
 //             if (ratio >= 0.8 && ratio <= 1.8) score += 5; // Accept more square-ish photos too
-            
+
 //             // Severely penalize tiny images
 //             if (img.naturalWidth < 250 || img.naturalHeight < 250) score -= 15;
-            
+
 //             // NEW: Major relevance factors
-            
+
 //             // Check if the image alt text or parent element text contains the dish name
 //             // This is crucial for matching the actual dish rather than related but incorrect images
 //             const dishNameLower = dishName.toLowerCase();
 //             const altText = alt ? alt.toLowerCase() : '';
-            
+
 //             // High bonus for exact name match in alt text
 //             if (altText.includes(dishNameLower)) {
 //               score += 30;
-              
+
 //               // Extra points for exact matches
-//               if (altText === dishNameLower || 
-//                   altText === `${dishNameLower} recipe` || 
+//               if (altText === dishNameLower ||
+//                   altText === `${dishNameLower} recipe` ||
 //                   altText === `${dishNameLower} dish`) {
 //                 score += 20;
 //               }
 //             }
-            
+
 //             // Check for dish name in URL - good signal for relevance
 //             if (url && url.toLowerCase().includes(dishNameLower.replace(/\s+/g, '-'))) {
 //               score += 15;
 //             }
-            
+
 //             // Prefer non-stock image sites
 //             if (url) {
-//               if (url.includes('shutterstock') || url.includes('getty') || 
+//               if (url.includes('shutterstock') || url.includes('getty') ||
 //                   url.includes('istockphoto') || url.includes('alamy')) {
 //                 score -= 25; // Heavy penalty for stock sites that often have watermarks
 //               }
-              
+
 //               // Prefer recipe sites and blogs which likely have actual dish photos
-//               if (url.includes('recipe') || url.includes('food') || 
+//               if (url.includes('recipe') || url.includes('food') ||
 //                   url.includes('cook') || url.includes('kitchen') ||
 //                   url.includes('allrecipes') || url.includes('taste') ||
 //                   url.includes('blog')) {
 //                 score += 10;
 //               }
 //             }
-            
+
 //             return score;
 //           };
-          
+
 //           // Helper to extract valid image URLs with improved relevance focus
 //           const getValidImageInfo = (element, altText) => {
 //             // Check m attribute first (best source for Bing images)
@@ -1711,7 +1847,7 @@ app.post("/fullImages", async (req, res) => {
 //                   // Get additional title/alt for relevance matching
 //                   const title = mData.t || '';
 //                   const alt = altText || title || '';
-                  
+
 //                   return {
 //                     url: mData.murl,
 //                     alt: alt,
@@ -1722,7 +1858,7 @@ app.post("/fullImages", async (req, res) => {
 //                 // Continue to other methods if parse error
 //               }
 //             }
-            
+
 //             // Check data attributes and src
 //             let imgUrl = null;
 //             if (element.dataset.src && element.dataset.src.startsWith("http")) {
@@ -1730,24 +1866,24 @@ app.post("/fullImages", async (req, res) => {
 //             } else if (element.src && element.src.startsWith("http") && !element.src.includes("data:image")) {
 //               imgUrl = element.src;
 //             }
-            
+
 //             if (imgUrl) {
 //               // Try to get alt text from the element itself or nearby elements
 //               const alt = altText || element.alt || element.title || '';
-              
+
 //               return {
 //                 url: imgUrl,
 //                 alt: alt,
 //                 score: getImageRelevanceScore(element, imgUrl, alt)
 //               };
 //             }
-            
+
 //             return null;
 //           };
 
 //           // Collect image data with relevance scores
 //           const imageData = [];
-          
+
 //           // First collect from containers with m attribute (highest quality source)
 //           const containers = document.querySelectorAll(".iusc");
 //           for (const container of containers) {
@@ -1757,7 +1893,7 @@ app.post("/fullImages", async (req, res) => {
 //                 // Get any alt text or title from container
 //                 const img = container.querySelector('img');
 //                 const altText = img ? (img.alt || img.title || '') : '';
-                
+
 //                 if (mData.murl && mData.murl.startsWith("http")) {
 //                   // Calculate score based on both quality and relevance
 //                   const score = getImageRelevanceScore(
@@ -1765,7 +1901,7 @@ app.post("/fullImages", async (req, res) => {
 //                     mData.murl,
 //                     altText || mData.t || '' // Use title from metadata if no alt
 //                   );
-                  
+
 //                   imageData.push({
 //                     url: mData.murl,
 //                     alt: altText || mData.t || '',
@@ -1775,7 +1911,7 @@ app.post("/fullImages", async (req, res) => {
 //               } catch (e) {}
 //             }
 //           }
-          
+
 //           // Add images from other common Bing selectors
 //           ["img.mimg", ".imgpt img", ".img_cont img"].forEach(selector => {
 //             document.querySelectorAll(selector).forEach(img => {
@@ -1789,7 +1925,7 @@ app.post("/fullImages", async (req, res) => {
 //                 }
 //                 parent = parent.parentElement;
 //               }
-              
+
 //               const imgInfo = getValidImageInfo(img, img.alt || parentAlt || '');
 //               if (imgInfo) {
 //                 imageData.push(imgInfo);
@@ -1848,12 +1984,6 @@ app.post("/fullImages", async (req, res) => {
 //   }
 // });
 
-
-
-
-
-
-
 app.post("/partialImages", async (req, res) => {
   const dishes = req.body;
   console.log(
@@ -1905,13 +2035,6 @@ app.post("/partialImages", async (req, res) => {
       ignoreHTTPSErrors: true,
     });
 
-
-
-
-
-
-
-
     const page = await browser.newPage();
 
     // More realistic browser settings
@@ -1952,12 +2075,6 @@ app.post("/partialImages", async (req, res) => {
     const dishesNeedingImages = selectedDishes.filter(
       (dish) => dish.needsImage
     );
-
-
-
-    
-
-
 
     for (let i = 0; i < dishesNeedingImages.length; i++) {
       const dish = dishesNeedingImages[i];
@@ -2014,7 +2131,6 @@ app.post("/partialImages", async (req, res) => {
           // },
           // Bing image search as a backup
           {
-
             name: "Bing Images",
             url: `https://www.bing.com/images/search?q=${encodeURIComponent(
               `${dish.name} ${dish.category} food photo`
@@ -2112,9 +2228,6 @@ app.post("/partialImages", async (req, res) => {
 
     // Remove the temporary property from all dishes
 
-
-
-
     selectedDishes.forEach((dish) => {
       delete dish.needsImage;
     });
@@ -2134,15 +2247,7 @@ app.post("/partialImages", async (req, res) => {
 app.get("/", (req, res) => {
   res.send("API is live!");
 });
-const PORT = 3000
-app.listen(PORT, '0.0.0.0', () => {
+const PORT = 3000;
+app.listen(PORT, "0.0.0.0", () => {
   console.log(`Server running on port ${PORT}`);
 });
-
-
-
-
-
-
-
-
