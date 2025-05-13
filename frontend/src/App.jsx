@@ -339,7 +339,7 @@ function App() {
 
       // Send all dishes to the partial image generation endpoint
       const response = await axios.post(
-        "http://localhost:3000/partialImages",
+        "http://localhost:8000/partialImages",
         allItems,
         {
           headers: {
@@ -446,7 +446,7 @@ function App() {
 
       // Send all dishes to the backend in a single request
       const response = await axios.post(
-        "http://localhost:3000/fullImages",
+        "http://localhost:8000/fullImages",
         allItems,
         {
           headers: {
