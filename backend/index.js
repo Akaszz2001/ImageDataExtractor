@@ -25,8 +25,9 @@ app.use(express.json());
 
 console.log("Current working directory:", process.cwd());
 
-//PROPERLY WORKING BUT SEARCH IMAGE IN GOOGLE AND BING MAKES DELAY
 
+
+// seraching on google and bing
 // app.post("/fullImages", async (req, res) => {
 //   const dishes = req.body;
 //   console.log(`Processing ${dishes.length} dishes`);
@@ -365,167 +366,8 @@ console.log("Current working directory:", process.cwd());
 //   }
 // });
 
-app.post("/fullImages", async (req, res) => {
-  const dishes = req.body;
-  console.log(`Processing ${dishes.length} dishes`);
 
-  let browser = null;
-  const concurrencyLimit = 3;
-
-  try {
-    browser = await puppeteer.launch({
-      headless: true,
-      args: [
-        "--no-sandbox",
-        "--disable-setuid-sandbox",
-        "--disable-infobars",
-        "--window-position=0,0",
-        "--ignore-certificate-errors",
-        "--ignore-certificate-errors-skip-list",
-        "--disable-dev-shm-usage",
-        "--disable-accelerated-2d-canvas",
-        "--disable-gpu",
-        "--window-size=1920,1080",
-        "--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.5060.53 Safari/537.36",
-      ],
-      ignoreHTTPSErrors: true,
-    });
-
-    const processDish = async (dish) => {
-      const page = await browser.newPage();
-
-      try {
-        await page.setViewport({ width: 1920, height: 1080 });
-        await page.setUserAgent(
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.5060.53 Safari/537.36"
-        );
-
-        await page.setExtraHTTPHeaders({
-          "Accept-Language": "en-US,en;q=0.9",
-          Accept:
-            "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
-          Referer: "https://www.google.com/",
-        });
-
-        await page.evaluateOnNewDocument(() => {
-          Object.defineProperty(navigator, "webdriver", {
-            get: () => false,
-          });
-
-          Object.defineProperty(navigator, "plugins", {
-            get: () => [
-              { name: "Chrome PDF Plugin", filename: "internal-pdf-viewer" },
-              {
-                name: "Chrome PDF Viewer",
-                filename: "mhjfbmdgcfjbbpaeojofohoefgiehjai",
-              },
-              { name: "Native Client", filename: "internal-nacl-plugin" },  
-            ],
-          });
-        });
-
-        const bingQuery = encodeURIComponent(
-          `${dish.name} ${dish.category} ${dish.description} food high quality`
-        );
-        const bingUrl = `https://www.bing.com/images/search?q=${bingQuery}&qft=+filterui:imagesize-large`;
-
-        await page.setRequestInterception(true);
-        page.on("request", (req) => {
-          const blocked = ["stylesheet", "font", "script"];
-          if (blocked.includes(req.resourceType())) {
-            req.abort();
-          } else {
-            req.continue();
-          }
-        });
-
-        await page.goto(bingUrl, {
-          waitUntil: "networkidle2",
-          timeout: 30000,
-        });
-
-        // await page.waitForTimeout(3000); // Let images load
-        // await new Promise((res) => setTimeout(res, 3000));
-        await page.waitForSelector("img.mimg, .iusc img, .imgpt img, img", {
-          timeout: 5000,
-        });
-
-        const imageUrl = await page.evaluate(() => {
-          const getValidImageUrl = (element) => {
-            if (element.dataset.src && element.dataset.src.startsWith("http"))
-              return element.dataset.src;
-            if (element.src && element.src.startsWith("http"))
-              return element.src;
-            if (element.getAttribute("m")) {
-              try {
-                const mData = JSON.parse(element.getAttribute("m"));
-                if (mData.murl && mData.murl.startsWith("http"))
-                  return mData.murl;
-              } catch (e) {}
-            }
-            return null;
-          };
-
-          const selectors = [".mimg", ".iusc img", ".imgpt img", "img"];
-          for (const sel of selectors) {
-            const imgs = document.querySelectorAll(sel);
-            for (const img of imgs) {
-              const url = getValidImageUrl(img);
-              if (url) return url;
-            }
-          }
-
-          return null;
-        });
-
-        if (imageUrl) {
-          dish.image = imageUrl;
-        } else {
-          dish.image = `https://via.placeholder.com/800x600?text=${encodeURIComponent(
-            `${dish.category}: ${dish.name}`
-          )}`;
-        }
-      } catch (err) {
-        console.error(`Error processing ${dish.name}:`, err);
-        dish.image = `https://via.placeholder.com/800x600?text=${encodeURIComponent(
-          `${dish.category}: ${dish.name}`
-        )}`;
-        dish.imageError = err.message;
-      } finally {
-        await page.close();
-      }
-    };
-
-    // Batch process dishes with concurrency limit
-    let index = 0;
-    while (index < dishes.length) {
-      const batch = dishes.slice(index, index + concurrencyLimit);
-      console.log(`Processing batch: ${index + 1} to ${index + batch.length}`);
-      await Promise.all(batch.map((dish) => processDish(dish)));
-
-      index += concurrencyLimit;
-
-      if (index < dishes.length) {
-        const delay = 2000 + Math.random() * 3000;
-        console.log(`Waiting ${Math.round(delay)}ms before next batch...`);
-        await new Promise((res) => setTimeout(res, delay));
-      }
-    }
-
-    console.log("Finished processing all dishes");
-    res.json(dishes);
-  } catch (err) {
-    console.error("Server error:", err);
-    res.status(500).json({ error: err.message });
-  } finally {
-    if (browser) {
-      await browser.close();
-      console.log("Browser closed");
-    }
-  }
-});
-
-//PORPERLY WORKING SERACHING ONLY IN BING BUT DOUBT IN IMAGE QUALITY
+// PORPERLY WORKING SERACHING ONLY IN BING BUT DOUBT IN IMAGE QUALITY
 // app.post("/fullImages", async (req, res) => {
 //   const dishes = req.body;
 //   console.log(`Processing ${dishes.length} dishes`);
@@ -1984,6 +1826,172 @@ app.post("/fullImages", async (req, res) => {
 //   }
 // });
 
+
+// ROUTE FOR FULL IMAGES
+
+app.post("/fullImages", async (req, res) => {
+  const dishes = req.body;
+  console.log(`Processing ${dishes.length} dishes`);
+
+  let browser = null;
+  const concurrencyLimit = 3;
+
+  try {
+    browser = await puppeteer.launch({
+      headless: true,
+      args: [
+        "--no-sandbox",
+        "--disable-setuid-sandbox",
+        "--disable-infobars",
+        "--window-position=0,0",
+        "--ignore-certificate-errors",
+        "--ignore-certificate-errors-skip-list",
+        "--disable-dev-shm-usage",
+        "--disable-accelerated-2d-canvas",
+        "--disable-gpu",
+        "--window-size=1920,1080",
+        "--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.5060.53 Safari/537.36",
+      ],
+      ignoreHTTPSErrors: true,
+    });
+
+    const processDish = async (dish) => {
+      const page = await browser.newPage();
+
+      try {
+        await page.setViewport({ width: 1920, height: 1080 });
+        await page.setUserAgent(
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.5060.53 Safari/537.36"
+        );
+
+        await page.setExtraHTTPHeaders({
+          "Accept-Language": "en-US,en;q=0.9",
+          Accept:
+            "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+          Referer: "https://www.google.com/",
+        });
+
+        await page.evaluateOnNewDocument(() => {
+          Object.defineProperty(navigator, "webdriver", {
+            get: () => false,
+          });
+
+          Object.defineProperty(navigator, "plugins", {
+            get: () => [
+              { name: "Chrome PDF Plugin", filename: "internal-pdf-viewer" },
+              {
+                name: "Chrome PDF Viewer",
+                filename: "mhjfbmdgcfjbbpaeojofohoefgiehjai",
+              },
+              { name: "Native Client", filename: "internal-nacl-plugin" },  
+            ],
+          });
+        });
+
+        const bingQuery = encodeURIComponent(
+          `${dish.name} ${dish.category} ${dish.description} food high quality`
+        );
+        const bingUrl = `https://www.bing.com/images/search?q=${bingQuery}&qft=+filterui:imagesize-large`;
+
+        await page.setRequestInterception(true);
+        page.on("request", (req) => {
+          const blocked = ["stylesheet", "font", "script"];
+          if (blocked.includes(req.resourceType())) {
+            req.abort();
+          } else {
+            req.continue();
+          }
+        });
+
+        await page.goto(bingUrl, {
+          waitUntil: "networkidle2",
+          timeout: 30000,
+        });
+
+        // await page.waitForTimeout(3000); // Let images load
+        // await new Promise((res) => setTimeout(res, 3000));
+        await page.waitForSelector("img.mimg, .iusc img, .imgpt img, img", {
+          timeout: 5000,
+        });
+
+        const imageUrl = await page.evaluate(() => {
+          const getValidImageUrl = (element) => {
+            if (element.dataset.src && element.dataset.src.startsWith("http"))
+              return element.dataset.src;
+            if (element.src && element.src.startsWith("http"))
+              return element.src;
+            if (element.getAttribute("m")) {
+              try {
+                const mData = JSON.parse(element.getAttribute("m"));
+                if (mData.murl && mData.murl.startsWith("http"))
+                  return mData.murl;
+              } catch (e) {}
+            }
+            return null;
+          };
+
+          const selectors = [".mimg", ".iusc img", ".imgpt img", "img"];
+          for (const sel of selectors) {
+            const imgs = document.querySelectorAll(sel);
+            for (const img of imgs) {
+              const url = getValidImageUrl(img);
+              if (url) return url;
+            }
+          }
+
+          return null;
+        });
+
+        if (imageUrl) {
+          dish.image = imageUrl;
+        } else {
+          dish.image = `https://via.placeholder.com/800x600?text=${encodeURIComponent(
+            `${dish.category}: ${dish.name}`
+          )}`;
+        }
+      } catch (err) {
+        console.error(`Error processing ${dish.name}:`, err);
+        dish.image = `https://via.placeholder.com/800x600?text=${encodeURIComponent(
+          `${dish.category}: ${dish.name}`
+        )}`;
+        dish.imageError = err.message;
+      } finally {
+        await page.close();
+      }
+    };
+
+    // Batch process dishes with concurrency limit
+    let index = 0;
+    while (index < dishes.length) {
+      const batch = dishes.slice(index, index + concurrencyLimit);
+      console.log(`Processing batch: ${index + 1} to ${index + batch.length}`);
+      await Promise.all(batch.map((dish) => processDish(dish)));
+
+      index += concurrencyLimit;
+
+      if (index < dishes.length) {
+        const delay = 2000 + Math.random() * 3000;
+        console.log(`Waiting ${Math.round(delay)}ms before next batch...`);
+        await new Promise((res) => setTimeout(res, delay));
+      }
+    }
+
+    console.log("Finished processing all dishes");
+    res.json(dishes);
+  } catch (err) {
+    console.error("Server error:", err);
+    res.status(500).json({ error: err.message });
+  } finally {
+    if (browser) {
+      await browser.close();
+      console.log("Browser closed");
+    }
+  }
+});
+
+
+// ROUTE FOR PARTIAL IAMGES
+
 app.post("/partialImages", async (req, res) => {
   const dishes = req.body;
   console.log(
@@ -2244,10 +2252,220 @@ app.post("/partialImages", async (req, res) => {
     }
   }
 });
+
+
+
 app.get("/", (req, res) => {
   res.send("API is live!");
 });
+
+
+// ROUTE FOR MULTIPLE IMAGES
+
+app.post("/multipleImages", async (req, res) => {
+  const dishes = req.body;
+  console.log(`Processing ${dishes.length} dishes for multiple images`);
+
+  let browser = null;
+  const concurrencyLimit = 3;
+  const imagesPerDish = 4; // Get at least 4 images per dish
+
+  try {
+    browser = await puppeteer.launch({
+      headless: true,
+      args: [
+        "--no-sandbox",
+        "--disable-setuid-sandbox",
+        "--disable-infobars",
+        "--window-position=0,0",
+        "--ignore-certificate-errors",
+        "--ignore-certificate-errors-skip-list",
+        "--disable-dev-shm-usage",
+        "--disable-accelerated-2d-canvas",
+        "--disable-gpu",
+        "--window-size=1920,1080",
+        "--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.5060.53 Safari/537.36",
+      ],
+      ignoreHTTPSErrors: true,
+    });
+
+    const processDish = async (dish) => {
+      const page = await browser.newPage();
+
+      try {
+        await page.setViewport({ width: 1920, height: 1080 });
+        await page.setUserAgent(
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.5060.53 Safari/537.36"
+        );
+
+        await page.setExtraHTTPHeaders({
+          "Accept-Language": "en-US,en;q=0.9",
+          Accept:
+            "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+          Referer: "https://www.google.com/",
+        });
+
+        await page.evaluateOnNewDocument(() => {
+          Object.defineProperty(navigator, "webdriver", {
+            get: () => false,
+          });
+
+          Object.defineProperty(navigator, "plugins", {
+            get: () => [
+              { name: "Chrome PDF Plugin", filename: "internal-pdf-viewer" },
+              {
+                name: "Chrome PDF Viewer",
+                filename: "mhjfbmdgcfjbbpaeojofohoefgiehjai",
+              },
+              { name: "Native Client", filename: "internal-nacl-plugin" },  
+            ],
+          });
+        });
+
+        const bingQuery = encodeURIComponent(
+          `${dish.name} ${dish.category} ${dish.description} food high quality`
+        );
+        const bingUrl = `https://www.bing.com/images/search?q=${bingQuery}&qft=+filterui:imagesize-large`;
+
+        await page.setRequestInterception(true);
+        page.on("request", (req) => {
+          const blocked = ["stylesheet", "font", "script"];
+          if (blocked.includes(req.resourceType())) {
+            req.abort();
+          } else {
+            req.continue();
+          }
+        });
+
+        await page.goto(bingUrl, {
+          waitUntil: "networkidle2",
+          timeout: 30000,
+        });
+
+        await page.waitForSelector("img.mimg, .iusc img, .imgpt img, img", {
+          timeout: 5000,
+        });
+
+        // Initialize dish.images array if it doesn't exist
+        dish.images = [];
+
+        // Extract multiple image URLs
+        const imageUrls = await page.evaluate((imagesPerDish) => {
+          const getValidImageUrl = (element) => {
+            if (element.dataset.src && element.dataset.src.startsWith("http"))
+              return element.dataset.src;
+            if (element.src && element.src.startsWith("http"))
+              return element.src;
+            if (element.getAttribute("m")) {
+              try {
+                const mData = JSON.parse(element.getAttribute("m"));
+                if (mData.murl && mData.murl.startsWith("http"))
+                  return mData.murl;
+              } catch (e) {}
+            }
+            return null;
+          };
+
+          const results = [];
+          const selectors = [".mimg", ".iusc img", ".imgpt img", "img"];
+          
+          for (const sel of selectors) {
+            const imgs = document.querySelectorAll(sel);
+            
+            for (const img of imgs) {
+              const url = getValidImageUrl(img);
+              if (url && !results.includes(url)) {
+                results.push(url);
+                
+                // Break once we have enough images
+                if (results.length >= imagesPerDish) {
+                  break;
+                }
+              }
+            }
+            
+            // Break if we have enough images after checking a selector
+            if (results.length >= imagesPerDish) {
+              break;
+            }
+          }
+
+          return results;
+        }, imagesPerDish);
+
+        if (imageUrls && imageUrls.length > 0) {
+          dish.images = imageUrls;
+        } 
+
+        // If we couldn't find enough images, add placeholders
+        while (dish.images.length < imagesPerDish) {
+          const placeholderUrl = `https://via.placeholder.com/800x600?text=${encodeURIComponent(
+            `${dish.category}: ${dish.name} (${dish.images.length + 1})`
+          )}`;
+          dish.images.push(placeholderUrl);
+        }
+
+        console.log(`Found ${dish.images.length} images for ${dish.name}`);
+
+      } catch (err) {
+        console.error(`Error processing ${dish.name}:`, err);
+        
+        // Create placeholder images in case of error
+        dish.images = [];
+        for (let i = 0; i < imagesPerDish; i++) {
+          dish.images.push(
+            `https://via.placeholder.com/800x600?text=${encodeURIComponent(
+              `${dish.category}: ${dish.name} (${i + 1})`
+            )}`
+          );
+        }
+        
+        dish.imageError = err.message;
+      } finally {
+        await page.close();
+      }
+    };
+
+    // Batch process dishes with concurrency limit
+    let index = 0;
+    while (index < dishes.length) {
+      const batch = dishes.slice(index, index + concurrencyLimit);
+      console.log(`Processing batch: ${index + 1} to ${index + batch.length}`);
+      await Promise.all(batch.map((dish) => processDish(dish)));
+
+      index += concurrencyLimit;
+
+      if (index < dishes.length) {
+        const delay = 2000 + Math.random() * 3000;
+        console.log(`Waiting ${Math.round(delay)}ms before next batch...`);
+        await new Promise((res) => setTimeout(res, delay));
+      }
+    }
+
+    console.log("Finished processing all dishes with multiple images");
+    res.json(dishes);
+  } catch (err) {
+    console.error("Server error:", err);
+    res.status(500).json({ error: err.message });
+  } finally {
+    if (browser) {
+      await browser.close();
+      console.log("Browser closed");
+    }
+  }
+});
+
+
+
+
+
+
+
+
 const PORT = 8000;
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`Server running on port ${PORT}`);
 });
+
+
+
