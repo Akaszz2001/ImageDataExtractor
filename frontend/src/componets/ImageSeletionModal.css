@@ -1,0 +1,241 @@
+/* ImageSelectionModal.css */
+#modal-portal-root {
+  /* Ensure portal container is positioned correctly */
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 0; /* Don't take up space */
+  z-index: 9999; /* Extremely high z-index */
+  pointer-events: none; /* Don't block clicks when no modal */
+}
+
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100vw; /* Full viewport width */
+  height: 100vh; /* Full viewport height */
+  background-color: rgba(0, 0, 0, 0.65);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 10000; /* Extremely high z-index */
+  pointer-events: auto; /* Allow clicks */
+  
+  /* Disable all touch gestures except standard scrolling */
+  touch-action: pan-y;
+  
+  /* Prevent any animations */
+  animation: none !important;
+  transition: none !important;
+}
+
+.modal-container {
+  background-color: white;
+  border-radius: 8px;
+  width: 90%;
+  max-width: 900px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  
+  /* Disable animations */
+  animation: none !important;
+  transition: none !important;
+  transform: none !important;
+  
+  /* Force GPU acceleration, can help with flickering */
+  will-change: transform;
+  -webkit-backface-visibility: hidden;
+  -moz-backface-visibility: hidden;
+  backface-visibility: hidden;
+  -webkit-transform: translate3d(0, 0, 0);
+  transform: translate3d(0, 0, 0);
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 24px;
+  border-bottom: 1px solid #eaeaea;
+  position: sticky;
+  top: 0;
+  background-color: white;
+  z-index: 2;
+}
+
+.modal-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  display: flex;
+  flex-direction: column;
+  flex-wrap: nowrap;
+}
+
+.dish-name {
+  font-size: 20px;
+  color: #333;
+}
+
+.title-action {
+  font-size: 14px;
+  color: #666;
+  margin-top: 4px;
+}
+
+.close-button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #666;
+  padding: 8px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.close-button:hover {
+  background-color: #f1f1f1;
+  color: #333;
+}
+
+.modal-body {
+  padding: 24px;
+}
+
+.image-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 16px;
+}
+
+.image-card {
+  border: 2px solid transparent;
+  border-radius: 8px;
+  overflow: hidden;
+  cursor: pointer;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  
+  /* Disable animations */
+  transition: none !important;
+  transform: none !important;
+}
+
+.image-card.selected {
+  border-color: #4a90e2;
+  box-shadow: 0 0 0 2px rgba(74, 144, 226, 0.3);
+}
+
+.image-wrapper {
+  position: relative;
+  padding-bottom: 75%; /* 4:3 aspect ratio */
+  height: 0;
+}
+
+.image-placeholder-bg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: #f5f5f5;
+}
+
+.option-image {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.selection-indicator {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background-color: #4a90e2;
+  color: white;
+  border-radius: 50%;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.image-label {
+  padding: 8px;
+  text-align: center;
+  background-color: #f9f9f9;
+}
+
+.option-number {
+  font-size: 14px;
+  color: #555;
+}
+
+.no-images {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  color: #666;
+  text-align: center;
+}
+
+.no-images svg {
+  margin-bottom: 16px;
+  color: #ccc;
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  padding: 16px 24px;
+  border-top: 1px solid #eaeaea;
+  gap: 12px;
+  position: sticky;
+  bottom: 0;
+  background-color: white;
+  z-index: 2;
+}
+
+.cancel-button {
+  padding: 8px 16px;
+  border: 1px solid #ddd;
+  background: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.cancel-button:hover {
+  background-color: #f5f5f5;
+}
+
+.select-button {
+  padding: 8px 16px;
+  background-color: #4a90e2;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.select-button:hover:not(.disabled) {
+  background-color: #3a80d2;
+}
+
+.select-button.disabled {
+  background-color: #b1c9e8;
+  cursor: not-allowed;
+}

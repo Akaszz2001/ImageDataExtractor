@@ -1,7 +1,11 @@
+
+
+
 import React, { useState, useRef, useEffect } from "react";
 import axios from "axios";
 import "./App.css";
-import GalleryCardIetms from "./components/GalleryCardIetms";
+import MenuItemCard from "./componets/MenuItemCard"; // Add this import
+
 
 const TOGETHER_API_KEY =
   "ffd96bebc08219a7dd524b0846b1c4fd6d603c5142343ec7fe6157d8dde2bf7c";
@@ -17,7 +21,7 @@ function App() {
   const [isDragging, setIsDragging] = useState(false);
   const [copySuccess, setCopySuccess] = useState(false);
   const [partialImageLoading, setPartialImageLoading] = useState(false);
-  const [mutlipleImageLoading,setMutipleImageLoading]=useState(false)
+
   const [pastedJson, setPastedJson] = useState("");
   const [pastedJsonError, setPastedJsonError] = useState(null);
   const dropAreaRef = useRef(null);
@@ -98,6 +102,26 @@ function App() {
     setFiles((prev) => [...prev, ...newFiles]);
     setError(null);
   };
+
+
+
+  const updateItemImage = (itemName, newImageUrl) => {
+    const updatedData = JSON.parse(JSON.stringify(combinedData));
+    
+    updatedData.forEach((result) => {
+      if (!result.error && result.data && Array.isArray(result.data)) {
+        result.data.forEach((dish) => {
+          if (dish.name === itemName) {
+            dish.image = newImageUrl;
+          }
+        });
+      }
+    });
+    
+    setCombinedData(updatedData);
+  };
+
+
 
   const removeFile = (index) =>
     setFiles((prev) => prev.filter((_, i) => i !== index));
@@ -390,76 +414,7 @@ function App() {
 
 
 
-  const multipleImageGeneration = async () => {
-    // Get all menu items from combinedData
-    const allItems = combinedData
-      .filter(
-        (result) => !result.error && result.data && Array.isArray(result.data)
-      )
-      .flatMap((result) => result.data);
-
-    if (allItems.length === 0) {
-      setError("No menu items to generate images for");
-      return;
-    }
-
-    setMutipleImageLoading(true);
-    setImageProcessedCount(0);
-    setError(null);
-
-    try {
-      // Create a deep copy of combinedData
-      const updatedData = JSON.parse(JSON.stringify(combinedData));
-
-      // Send all dishes to the multiple image generation endpoint
-      const response = await axios.post(
-        "http://localhost:3000/multipleImages",
-        allItems,
-        {
-          headers: {
-            "Content-Type": "application/json",
-          },
-        }
-      );
-
-      // Process the response and update the data
-      if (response.data && Array.isArray(response.data)) {
-        // Create a map of dish name to images array for quick lookup
-        const dishImagesMap = {};
-        response.data.forEach((dish) => {
-          if (dish.name && dish.images && Array.isArray(dish.images)) {
-            dishImagesMap[dish.name] = dish.images;
-          }
-        });
-
-        // Update each dish in our data with its images array
-        let processedCount = 0;
-        updatedData.forEach((result) => {
-          if (!result.error && result.data && Array.isArray(result.data)) {
-            result.data.forEach((dish) => {
-              if (dishImagesMap[dish.name]) {
-                dish.images = dishImagesMap[dish.name];
-                processedCount++;
-                setImageProcessedCount(processedCount);
-              }
-            });
-          }
-        });
-
-        // Update the combinedData with the enhanced data
-        setCombinedData(updatedData);
-      } else {
-        throw new Error(
-          "Invalid response from multiple image generation server"
-        );
-      }
-    } catch (err) {
-      setError(`Multiple image generation error: ${err.message}`);
-    } finally {
-      setMutipleImageLoading(false);
-    }
-  };
-
+  
 
 
   const handleSubmit = async () => {
@@ -827,7 +782,7 @@ function App() {
                 onClick={handlePartialImageGeneration}
                 disabled={
                   imageGenerationLoading ||
-                 mutlipleImageLoading ||
+                  partialImageLoading||
                   getTotalMenuItems() === 0
                 }
                 className="generate-images-button partial"
@@ -837,19 +792,7 @@ function App() {
                   : "Partially Generate Images"}
               </button>
 
-              <button
-                onClick={multipleImageGeneration}
-                disabled={
-                  imageGenerationLoading ||
-                  mutlipleImageLoading||
-                  getTotalMenuItems() === 0
-                }
-                className="generate-images-button partial"
-              >
-                {mutlipleImageLoading
-                  ? `Generating Multiple Images... (${imageProcessedCount}/${getTotalMenuItems()})`
-                  : "Generate Multiple Images"}
-              </button>
+            
             </div>
 
             {(imageGenerationLoading || partialImageLoading) && (
@@ -898,8 +841,22 @@ function App() {
             </pre>
           </div>
 
-          {/* Menu Items Display Section */}
-        <GalleryCardIetms combinedData={combinedData}/>
+         {/* Menu Items Display Section */}
+<div className="menu-items-display">
+  <h3>Menu Items Gallery</h3>
+  <div className="menu-items-grid">
+    {combinedData
+      .filter((result) => !result.error && result.data)
+      .flatMap((result) => result.data)
+      .map((item, index) => (
+        <MenuItemCard 
+          key={index} 
+          item={item} 
+          updateItemImage={updateItemImage} 
+        />
+      ))}
+  </div>
+</div>
         </div>
       )}
     </div>
