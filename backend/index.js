@@ -1889,7 +1889,7 @@ app.post("/fullImages", async (req, res) => {
         });
 
         const bingQuery = encodeURIComponent(
-          `${dish.name} ${dish.category} ${dish.description} food high quality`
+          `${dish.name} ${dish.category} food high quality`
         );
         const bingUrl = `https://www.bing.com/images/search?q=${bingQuery}&qft=+filterui:imagesize-large`;
 
