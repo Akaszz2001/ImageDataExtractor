@@ -503,7 +503,7 @@ h2 {
   position: absolute;
   bottom: 10px;
   right: 10px;
-  background-color: rgba(0, 0, 0, 0.7);
+  background-color: rgba(0, 0, 0);
   color: white;
   border: none;
   border-radius: 4px;

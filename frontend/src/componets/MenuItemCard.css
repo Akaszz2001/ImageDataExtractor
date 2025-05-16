@@ -45,7 +45,7 @@
   position: absolute;
   bottom: 10px;
   right: 10px;
-  background-color: rgba(255, 255, 255, 0.9);
+  background-color: black;
   border: 1px solid #ddd;
   border-radius: 4px;
   padding: 6px 12px;
@@ -58,7 +58,7 @@
 }
 
 .more-images-button:hover:not(:disabled) {
-  background-color: white;
+  background-color: black;
   border-color: #ccc;
 }
 

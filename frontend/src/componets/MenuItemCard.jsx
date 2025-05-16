@@ -21,13 +21,20 @@ const MenuItemCard = ({ item, updateItemImage }) => {
     e.preventDefault();
     
     if (isLoading) return; // Prevent multiple requests
-    
+
+    // Prompt the user for the dish name
+    const userInput = window.prompt("Enter the name for which you want to generate images:", item.name);
+    if (!userInput || userInput.trim() === "") return; // Cancelled or empty
+
+    // Create a duplicate object with the new name
+    const itemForImage = { ...item, name: userInput.trim() };
+
     setIsLoading(true);
     try {
       // Send the dish data to the backend to generate alternative images
       const response = await axios.post(
         "http://localhost:8000/multipleImages",
-        item,
+        itemForImage,
         {
           headers: {
             "Content-Type": "application/json",
@@ -68,7 +75,7 @@ const MenuItemCard = ({ item, updateItemImage }) => {
           <div className="no-image">No Image</div>
         )}
         <button 
-          className="more-images-button"
+          className="more-images-button bg-black"
           onClick={handleGetMoreImages}
           disabled={isLoading}
           type="button"

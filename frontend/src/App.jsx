@@ -1,6 +1,3 @@
-
-
-
 import React, { useState, useRef, useEffect } from "react";
 import axios from "axios";
 import "./App.css";
@@ -21,6 +18,8 @@ function App() {
   const [isDragging, setIsDragging] = useState(false);
   const [copySuccess, setCopySuccess] = useState(false);
   const [partialImageLoading, setPartialImageLoading] = useState(false);
+  const [aiImageLoading, setAiImageLoading] = useState(false);
+  const [aiImageProcessedCount, setAiImageProcessedCount] = useState(0);
 
   const [pastedJson, setPastedJson] = useState("");
   const [pastedJsonError, setPastedJsonError] = useState(null);
@@ -615,6 +614,75 @@ function App() {
     }
   };
 
+  // Add this new function after other handlers
+  const handleGenerateAIImages = async () => {
+    // Get all menu items from combinedData
+    const allItems = combinedData
+      .filter(
+        (result) => !result.error && result.data && Array.isArray(result.data)
+      )
+      .flatMap((result) => result.data);
+
+    if (allItems.length === 0) {
+      setError("No menu items to generate images for");
+      return;
+    }
+
+    setAiImageLoading(true);
+    setAiImageProcessedCount(0);
+    setError(null);
+
+    try {
+      // Create a deep copy of combinedData
+      const updatedData = JSON.parse(JSON.stringify(combinedData));
+
+      // Send all dishes to the backend in a single request
+      const response = await axios.post(
+        "http://localhost:8000/generateAIImages",
+        allItems,
+        {
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      // Process the response and update the data
+      if (response.data && Array.isArray(response.data)) {
+        // Create a map of dish name to image URL for quick lookup
+        const dishImageMap = {};
+        response.data.forEach((dish) => {
+          if (dish.name && dish.image) {
+            dishImageMap[dish.name] = dish.image;
+          }
+        });
+
+        // Update each dish in our data with its image URL
+        let processedCount = 0;
+        updatedData.forEach((result) => {
+          if (!result.error && result.data && Array.isArray(result.data)) {
+            result.data.forEach((dish) => {
+              if (dishImageMap[dish.name]) {
+                dish.image = dishImageMap[dish.name];
+                processedCount++;
+                setAiImageProcessedCount(processedCount);
+              }
+            });
+          }
+        });
+
+        // Update the combinedData with the enhanced data
+        setCombinedData(updatedData);
+      } else {
+        throw new Error("Invalid response from AI image generation server");
+      }
+    } catch (err) {
+      setError(`AI Image generation error: ${err.message}`);
+    } finally {
+      setAiImageLoading(false);
+    }
+  };
+
   return (
     <div className="container">
       <h2>Restaurant Menu Extractor</h2>
@@ -767,6 +835,7 @@ function App() {
                 disabled={
                   imageGenerationLoading ||
                   partialImageLoading ||
+                  aiImageLoading ||
                   getTotalMenuItems() === 0
                 }
                 className="generate-images-button"
@@ -782,7 +851,8 @@ function App() {
                 onClick={handlePartialImageGeneration}
                 disabled={
                   imageGenerationLoading ||
-                  partialImageLoading||
+                  partialImageLoading ||
+                  aiImageLoading ||
                   getTotalMenuItems() === 0
                 }
                 className="generate-images-button partial"
@@ -792,22 +862,35 @@ function App() {
                   : "Partially Generate Images"}
               </button>
 
-            
+              <button
+                onClick={handleGenerateAIImages}
+                disabled={
+                  imageGenerationLoading ||
+                  partialImageLoading ||
+                  aiImageLoading ||
+                  getTotalMenuItems() === 0
+                }
+                className="generate-images-button ai"
+              >
+                {aiImageLoading
+                  ? `Generating AI Images... (${aiImageProcessedCount}/${getTotalMenuItems()})`
+                  : "Generate Full AI Images"}
+              </button>
             </div>
 
-            {(imageGenerationLoading || partialImageLoading) && (
+            {(imageGenerationLoading || partialImageLoading || aiImageLoading) && (
               <div className="progress-bar-container">
                 <div
                   className="progress-bar"
                   style={{
                     width: `${Math.round(
-                      (imageProcessedCount / getTotalMenuItems()) * 100
+                      ((imageProcessedCount + aiImageProcessedCount) / getTotalMenuItems()) * 100
                     )}%`,
                   }}
                 ></div>
                 <div className="progress-text">
                   {Math.round(
-                    (imageProcessedCount / getTotalMenuItems()) * 100
+                    ((imageProcessedCount + aiImageProcessedCount) / getTotalMenuItems()) * 100
                   )}
                   %
                 </div>
@@ -842,7 +925,7 @@ function App() {
           </div>
 
          {/* Menu Items Display Section */}
-<div className="menu-items-display">
+<div className="menu-items-display">    
   <h3>Menu Items Gallery</h3>
   <div className="menu-items-grid">
     {combinedData
